@@ -23,12 +23,12 @@
 			<td><div style="width: 800px"><canvas id="versionChart"></canvas></div></td>
 		</tr>
 		<tr>
-			<td><div style="width: 800px"><canvas id="dailyRequestChart"></canvas></div></td>
-			<td></td>
+			<td><div style="width: 800px"><canvas id="weekRequestChart"></canvas></div></td>
+			<td><div style="width: 800px"><canvas id="monthRequestChart"></canvas></div></td>
 		</tr>
 	</table>
 	
-	
+	<div id="debug" hidden="true"></div>
 	<!--<canvas id="csChart" width="300"></canvas>-->
 	
 	
@@ -97,7 +97,19 @@
 			}
 		}
 	});	
-	var dailyRequestChart = new Chart($('#dailyRequestChart'), {
+	var weekRequestChart = new Chart($('#weekRequestChart'), {
+		type: 'bar',
+		data: {},
+		options: {
+			responsive: true,
+			scales: {
+				y: {
+					beginAtZero: true
+				}
+			}
+		}
+	});	
+	var monthRequestChart = new Chart($('#monthRequestChart'), {
 		type: 'bar',
 		data: {},
 		options: {
@@ -120,7 +132,10 @@
 	};
 	
 	$.loadStats = function(date) {
-		var post = $.post("json?r=stats-daily", date);
+		var data = {stats: 'daily', date: $('#date').val(), debug: false};
+		if ($('#debug').val() != '') data.debug = true;
+		
+		var post = $.post("json?r=stats-daily", data);
 		
 		post.done( function(data) {
 			designatorChart.data.datasets.pop();
@@ -152,23 +167,39 @@
 				versionChart.update();
 
 			} catch (e) {
-				alert('Statistics incomplete')
+				alert('Daily statistics incomplete')
 			}
 		});
 		
 		post = $.post("json?r=stats-weekly", date);
 		
 		post.done( function(data) {
-			dailyRequestChart.data.datasets.pop();
+			weekRequestChart.data.datasets.pop();
 			try {
 				var resp = JSON.parse(data);
 				
-				dailyRequestChart.data.labels = Object.keys(resp.date);
-				dailyRequestChart.data.datasets.push({label: 'Daily Requests', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
-				dailyRequestChart.update();
+				weekRequestChart.data.labels = Object.keys(resp.date);
+				weekRequestChart.data.datasets.push({label: 'Daily Requests', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				weekRequestChart.update();
 
 			} catch (e) {
-				alert('Statistics incomplete')
+				alert('Weekly statistics incomplete')
+			}
+		});		
+
+		post = $.post("json?r=stats-monthly", date);
+		
+		post.done( function(data) {
+			monthRequestChart.data.datasets.pop();
+			try {
+				var resp = JSON.parse(data);
+				
+				monthRequestChart.data.labels = Object.keys(resp.date);
+				monthRequestChart.data.datasets.push({label: 'Daily Requests', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				monthRequestChart.update();
+
+			} catch (e) {
+				alert('Montly statistics incomplete')
 			}
 		});		
 	};
@@ -177,6 +208,8 @@
 		$( function() {
 			$.loadDays();
 			$.loadStats({date: 'today'});
+			let searchParams = new URLSearchParams(window.location.search);
+			if (searchParams.has('debug')) $('#debug').val(true);
 		});
 //		setInterval( function() {
 //			$.loadRanges();
