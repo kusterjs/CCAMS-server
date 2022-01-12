@@ -199,6 +199,7 @@ class CCAMS {
 			rsort($logfiles);
 			foreach ($logfiles as $file) {
 				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
+				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
 				$logs['day'][$date->format('Y-m-d')] = '';
 				$logs['week'][$date->format('W')] = '';
 				$logs['month'][$date->format('F Y')] = '';
@@ -430,6 +431,7 @@ class CCAMSstats {
 	
 	private $is_debug;
 	private $f_log;
+	private $logfile_prefix;
 	private $logdata;
 	private $stats;
 	
@@ -437,6 +439,7 @@ class CCAMSstats {
 	function __construct($debug = false) {
 		date_default_timezone_set("UTC");
 		$this->f_log = '/log/';
+		$this->logfile_prefix = 'log_';
 		$this->logdata = array();
 		
 		if ($debug) {
@@ -451,8 +454,8 @@ class CCAMSstats {
 	}
 	
 	function readStats($date) {
-		if (!date('Y-m-d',$date)) return false;
-		if (($logdata = file(__DIR__.$this->f_log.'log_'.date('Y-m-d',$date).'.txt'))===false) return false;
+		if (!$date instanceof DateTime) return false;
+		if (($logdata = file(__DIR__.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
 		foreach ($logdata as $line) {
 			$data = explode(";",$line);
 			if (count($data)==9) $this->logdata[] = $data;
@@ -484,7 +487,7 @@ class CCAMSstats {
 			if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
 			if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
 		}
-		ksort($stats['version']);
+		if (array_key_exists('version', $stats)) ksort($stats['version']);
 		return json_encode($stats);
 		
 		//echo var_dump($stats);
