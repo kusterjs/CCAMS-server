@@ -60,6 +60,8 @@
 		</tr>
 	</table>
 	<button id="reload">Reload</button>
+	<br>
+	<p>Check out the usage <a href="statistics" target="_blank">statistics</a></p>
 
 </body>
 </html>
