@@ -484,7 +484,7 @@ class CCAMSstats {
 			$stats['callsign'][$log[5]] += 1;
 			if (preg_match('/^([A-Z]+)_/',$log[5],$m)) $stats['designator'][$m[1]] += 1;
 			if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$log[5],$m)) $stats['facility'][$m[1]] += 1;
-			if (preg_match('/CCAMS\/([\d\.]+)/',$log[2],$m)) $stats['version'][$m[1]] += 1;
+			if (preg_match('/CCAMS\/([\d\w\.]+)/',$log[2],$m)) $stats['version'][$m[1]] += 1;
 			if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
 			if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
 		}
