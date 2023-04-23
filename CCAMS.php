@@ -466,8 +466,8 @@ class CCAMSstats {
 
 	function createStats() {
 		$facilities = array('DEL', 'GND', 'TWR', 'APP', 'DEP', 'CTR', 'FSS');
-		$stats['facility'] = array_combine($facilities, array_fill(0, count($facilities), ''));
-		$stats['hour'] = array_fill(0,24,'');
+		$stats['facility'] = array_combine($facilities, array_fill(0, count($facilities), 0));
+		$stats['hour'] = array_fill(0,24,0);
 		foreach ($this->logdata as $log) {
 			if ($log[7]=='code assigned') {
 				
@@ -479,6 +479,7 @@ class CCAMSstats {
 			$stats['month'][$date->format('n')] += 1;
 			$stats['week'][$date->format('W')] += 1;
 			$stats['day'][$date->format('j')] += 1;
+			//echo var_dump($stats);
 			$stats['hour'][$date->format('G')] += 1;
 			$stats['callsign'][$log[5]] += 1;
 			if (preg_match('/^([A-Z]+)_/',$log[5],$m)) $stats['designator'][$m[1]] += 1;
@@ -487,6 +488,7 @@ class CCAMSstats {
 			if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
 			if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
 		}
+		ksort($stats['designator']);
 		if (array_key_exists('version', $stats)) ksort($stats['version']);
 		return json_encode($stats);
 		
