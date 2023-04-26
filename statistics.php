@@ -179,7 +179,7 @@
 				var resp = JSON.parse(data);
 				
 				weekRequestChart.data.labels = Object.keys(resp.date);
-				weekRequestChart.data.datasets.push({label: 'Daily Requests', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				weekRequestChart.data.datasets.push({label: 'Daily Requests (week)', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
 				weekRequestChart.update();
 
 			} catch (e) {
@@ -195,7 +195,7 @@
 				var resp = JSON.parse(data);
 				
 				monthRequestChart.data.labels = Object.keys(resp.date);
-				monthRequestChart.data.datasets.push({label: 'Daily Requests', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				monthRequestChart.data.datasets.push({label: 'Daily Requests (month)', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
 				monthRequestChart.update();
 
 			} catch (e) {
