@@ -5,6 +5,7 @@ class CCAMS {
 	private $timer;
 	private $is_debug;
 	private $is_valid;
+	private $networkmode;
 	private $client_ipaddress;
 	private $root;
 	private $f_bin;
@@ -27,6 +28,7 @@ class CCAMS {
 		
 		$this->timer = microtime(true);
 		$this->is_valid = false;
+		$this->networkmode = false;
 		$this->root = __DIR__;
 		$this->f_bin = $f_bin;
 		$this->f_log = '/log/';
@@ -122,15 +124,24 @@ class CCAMS {
 
 	function request_code() {
 		if (!$this->is_valid) return;
-		if (!array_key_exists('callsign',$_GET)) return;
-		
+		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
+		echo var_dump(debug_backtrace()).'<br><br>';
+		//if (!array_key_exists('callsign',$_GET)) return;
+
 		// generate an array with all possible squawk codes
 		$squawk = array_fill(0,4095,'');
 
 		// remove all non-discrete codes from possible results
-		foreach ($squawk as $code => $code) {
+		foreach ($squawk as $code => $val) {
 			if ($code%64==0) unset($squawk[$code]);
 		}
+
+		// activate network mode (instead of local mode (for sweatbox, simulator))
+		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !($_GET('connectiontype')==1 || $_GET('connectiontype')==2)))) {
+			$this->networkmode = true;
+			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? $_GET('connectiontype') : 'false').')<br />';
+		}
+
 		// removed codes already in use
 		foreach ($this->codes_used() as $code) unset($squawk[$code]);
 		
@@ -156,26 +167,32 @@ class CCAMS {
 			if ($this->is_debug) echo 'selecting a random squawk<br />';
 			$ssr = array_rand($squawk);
 		}
-		if (!$this->reserve_code(sprintf("%04o",$ssr),2*3600)) return;
+		$resp = sprintf("%04o",$ssr);
+
+		if ($this->networkmode) {
+			// reserve code
+			$this->reserve_code($resp,2*3600);
 		
-		// write cache files
-		$this->write_cache_file('/cache/squawks.bin',$this->usedcodes);
-		
+			// write cache files
+			$this->write_cache_file('/cache/squawks.bin',$this->usedcodes);
+		}
 		
 		// create output
-		$resp = sprintf("%04o",$ssr);
 		$this->write_log("code assigned;".$resp);
 		
 		if ($this->is_debug) $resp .= '<br />';
 		return $resp;
 	}
 	
-	function checks() {
+	function authenticate() {
 		//return http_response_code(401);
 		if (!$this->check_connection()) return http_response_code(406);
 		if (!$this->check_user_agent()) return http_response_code(401);
+		if (!$this->check_user_callsign()) {
+			echo '0000';
+			return;
+		}
 		if (!$this->check_user_request()) return http_response_code(429);
-		if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = array();
 		
 		$this->is_valid = true;
 	}
@@ -187,11 +204,12 @@ class CCAMS {
 			}
 			return $codes;
 		}
-		return false;
+		return array();
 	}
 	
 	function clean_squawk_cache() {
-		if (($codes = $this->check_reserved_codes())!==false) $this->write_cache_file('/cache/squawks.bin',$codes);
+		//if (($codes = $this->check_reserved_codes())!==false) 
+		if ($this->networkmode) $this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
 	}
 	
 	function get_logs() {
@@ -238,13 +256,26 @@ class CCAMS {
 	}
 	
 	private function check_user_agent() {
-		if (preg_match('/EuroScope CCAMS\/(1\.7|2\.0)\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		if (preg_match('/EuroScope CCAMS\/(1\.7|2\.[01])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
 		$this->write_log("user agent not authorised");
+		return false;
+	}
+	
+	private function check_user_callsign() {
+		if (!array_key_exists('callsign',$_GET)) return false;
+		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$_GET['callsign'])) return true;
+		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
+		$this->write_log("user callsign not authorised");
+
 		return false;
 	}
 	
 	private function check_user_request() {
 		if ($this->users = $this->read_cache_file('/cache/users.bin')) {
+			if (time()-$this->users[$this->client_ipaddress][1] < 3) {
+				$this->write_log("spam protection;multiple joint requests detected");
+				return false;
+			}
 			$this->users[$this->client_ipaddress][0] -= pow(2,floor((time()-$this->users[$this->client_ipaddress][1])/60))-1;	// reduce count depending on the time of the last request
 			if ($this->users[$this->client_ipaddress][0] <= 0) unset($this->users[$this->client_ipaddress]);
 			elseif ($this->users[$this->client_ipaddress][0] > 15) {
@@ -265,12 +296,24 @@ class CCAMS {
 	
 	private function codes_used() {
 		$codes = array();
+		$this->usedcodes = array();
 		// check squawks used according vatsim-data file and exclude these codes from possible results
-		$vatsim = new VATSIM($this->is_debug);
-		$vdata = $vatsim->get_vdata();
-		foreach ($vdata['pilots'] as $pilot) {
-			if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
-		}		
+		if ($this->networkmode) {
+			$vatsim = new VATSIM($this->is_debug);
+			$vdata = $vatsim->get_vdata();
+			foreach ($vdata['pilots'] as $pilot) {
+				if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
+			}
+			
+			// collect already reserved codes
+			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = array();
+			$this->usedcodes = $this->check_reserved_codes();
+			
+			// exclude all cached codes from possible results
+			foreach ($this->usedcodes as $code => $time) {
+				if ($time > time()) $codes[] = $code;
+			}
+		}
 
 		// exclude all codes already known to be assigned by the controller asking for a code
 		if (array_key_exists('codes',$_GET)) {
@@ -278,19 +321,14 @@ class CCAMS {
 				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
 			}
 		}
-	
-		// exclude all cached codes from possible results
-		foreach ($this->usedcodes as $code => $time) {
-			if ($time > time()) $codes[] = $code;
-		}
-		
 		return array_unique($codes);
 	}
 	
 	private function reserve_code($code,$seconds) {
 		// code in octal format (as displayed for use, numbers 0-7 only)
-		if (octdec($code)%64==0) return true;
-		if (decoct(octdec($code))!=$code) return false;
+		if (octdec($code)%64==0) return false;	// disregard non-discrete codes (they don't need to return true as they will be removed from the possible range anyway)
+		if (decoct(octdec($code))!=$code) return false;	// non-valid octal code
+		//if (!$this->networkmode) return true;	// code reservation not required in local mode
 		
 		if ($this->is_debug) $expiryTime = time() + 360;
 		else $expiryTime = time() + $seconds;
@@ -299,6 +337,7 @@ class CCAMS {
 			if ($this->usedcodes[octdec($code)] > $expiryTime) return false;
 		}
 		$this->usedcodes[octdec($code)] = $expiryTime;
+		if ($this->is_debug) echo 'reserving code '.octdec($code).'<br />';
 		return true;
 	}
 	
@@ -338,7 +377,6 @@ class CCAMS {
 		for ($len = strlen($callsign)-1; $len>1; $len--) $search[] = substr($callsign,0,$len);
 		$searches['FIR'] = array_unique($search);		
 
-
 		if ($code = $this->get_range_code($searches,$conditions)) return $code;
 		return false;
 	}
@@ -375,6 +413,9 @@ class CCAMS {
 								for ($code = $this->squawkranges[$tablekey][$rangename][$condition][0];$code<=$this->squawkranges[$tablekey][$rangename][$condition][1];$code++) {
 									if ($this->is_debug) echo 'probing code '.$code.'<br />';
 									if (array_key_exists($code,$this->squawk)) return $code;
+									else {
+										if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
+									}
 								}
 							}
 						}
@@ -401,16 +442,20 @@ class CCAMS {
 	}
 */	
 	private function read_cache_file($file, $key = '') {
-		if (($data = unserialize(file_get_contents($this->root.$file)))!==false) {
-			if (!empty($key) && array_key_exists($key,$data)) return $data[$key];
-			return $data;
+		if (file_exists($this->root.$file)) {
+			if (($data = unserialize(file_get_contents($this->root.$file)))!==false) {
+				if (!empty($key) && array_key_exists($key,$data)) return $data[$key];
+				return $data;
+			}
 		}
 		$this->write_log("file reading error;cache ".$key);
 		return false;
 	}
 	
-	private function write_cache_file($file,$data, $key = '') {
+	private function write_cache_file($file, $data, $key = '') {
+		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__.", write_cache_file $file\n",FILE_APPEND);
 		if (empty($key)) {
+			//if ($this->is_debug) echo var_dump(serialize($data)).'<br>';
 			if (file_put_contents($this->root.$file, serialize($data))) return true;
 		} else if (($d = $this->read_cache_file($file))!==false) {
 			$d[$key] = $data;
