@@ -358,6 +358,94 @@ class CCAMS {
 	private function write_log($text) {
 		file_put_contents(__DIR__.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
 	}
+
+	// the following functions are used for the website-based interactions (change and display codes)
+	function set_sqwk_range($key,$text) {
+		if ($text=='') {
+			$codes = array();			
+		} else {
+			if (!preg_match_all('/([A-Z]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
+
+			foreach ($m[0] as $k0 => $m0) {
+				$orig = strtolower($m[1][$k0]);
+				if (strlen($m[4][$k0])<2) $dest = 'zzzz';
+				else $dest = strtolower($m[4][$k0]);
+
+				$codes[$orig][$dest][] = octdec($m[2][$k0]);
+				if (!empty($m[3][$k0])) {
+					$codes[$orig][$dest][] = octdec($m[3][$k0]);
+				} else {
+					$codes[$orig][$dest][] = octdec($m[2][$k0]);
+				}
+			}
+		}
+		$this->write_cache_file('/cache/ranges.bin',$codes,$key);
+	}
+	
+	function get_squawk_range($key) {
+		// depreciated
+		$text = '';
+		if ($codes = $this->read_cache_file('/cache/ranges.bin',$key)) {
+			foreach ($codes as $orig => $group) {
+				foreach ($group as $dest => $range) {
+					$text .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
+					if ($range[1]!=$range[0]) $text .= ':'.sprintf("%04o",$range[1]);
+					if ($dest!='zzzz') $text .= ':'.strtoupper($dest);
+				}
+			}
+		}
+		return $text;
+	}
+	
+	function get_sqwk_ranges() {
+		$json = array();
+		if ($codes = $this->read_cache_file('/cache/ranges.bin')) {
+			foreach ($codes as $table => $category) {
+				$txt = '';
+				foreach ($category as $orig => $group) {
+					foreach ($group as $dest => $range) {
+						$txt .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
+						if ($range[1]!=$range[0]) $txt .= ':'.sprintf("%04o",$range[1]);
+						if ($dest!='zzzz') $txt .= ':'.strtoupper($dest);
+					}
+				}
+				$json[$table] = trim($txt);
+			}
+		}
+		return json_encode($json);
+	}
+	
+	function get_reserved_codes() {
+		$json = array();
+		if ($codes = $this->read_cache_file('/cache/squawks.bin')) {
+			ksort($codes);
+			$txt = '';
+			foreach ($codes as $squawk => $time) {
+				$txt .= "\n".sprintf("%04o",$squawk)."\t".date('Y-m-d H:i:s',$time);
+			}
+		}
+		return json_encode(array(trim($txt)));
+	}
+	
+	// used to get the date list for statistics
+	function get_logs() {
+		if (($logfiles = glob(__DIR__.$this->f_log.$this->logfile_prefix.'*'))!==false) {
+			rsort($logfiles);
+			foreach ($logfiles as $file) {
+				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
+				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
+				$logs['day'][$date->format('Y-m-d')] = '';
+				$logs['week'][$date->format('W')] = '';
+				$logs['month'][$date->format('F Y')] = '';
+			}
+			foreach ($logs as $key => $value) {
+				$resp[$key] = array_keys($value);
+			}
+			//array_unique($resp, SORT_STRING);
+			return json_encode($resp);
+		}
+		return false;
+	}
 }
 
 class CCAMSstats {
