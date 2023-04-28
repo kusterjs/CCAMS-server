@@ -31,23 +31,20 @@ if (array_key_exists('r',$_GET)) {
 			break;
 		case 'stats-weekly':
 			$date = clone $seldate;
-			$date->sub(new DateInterval('P7D'));
+			$date->sub(new DateInterval('P'.$date->format('N').'D'));
 			do {
 				$date->add(new DateInterval('P1D'));
 				$CCAMSstats->readStats($date);
-				//echo $date->format('Y-m-d');
-				//echo $seldate->diff($date)->format('%d');
-			} while ($seldate->diff($date)->days != 0);
-			//echo var_dump($seldate->diff($date)->days);
+			} while ($date->format('N') < 7);
+		//echo var_dump($seldate->diff($date)->days);
 			echo $CCAMSstats->createStats();
 			break;
 		case 'stats-monthly':
 			$date = clone $seldate;
 			$date->sub(new DateInterval('P'.$date->format('j').'D'));
-			do {
+			while ($date->add(new DateInterval('P1D'))->format('n') == $seldate->format('n')) {
 				$CCAMSstats->readStats($date);
-				$date->add(new DateInterval('P1D'));
-			} while ($date->format('n') == $seldate->format('n'));
+			}
 			echo $CCAMSstats->createStats();
 			break;
 		case 'stats-yearly':
