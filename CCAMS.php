@@ -17,7 +17,6 @@ class CCAMS {
 	private $users;
 	private $usedcodes;	// the codes reserved by the api
 	private $squawkranges;
-	private $srange_keys;
 	
 	private $squawk;	// the codes available for use
 
@@ -34,7 +33,6 @@ class CCAMS {
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
 		$this->file_log = $this->f_log.$this->logfile_prefix.date('Y-m-d').'.txt';
-
 		
 		if ($debug) {
 			$this->is_debug = true;
@@ -54,74 +52,82 @@ class CCAMS {
 	function is_valid() {
 		return $this->is_valid;
 	}
+
+	function authenticate() {
+		//return http_response_code(401);
+		if (!$this->check_connection()) return http_response_code(406);
+		if (!$this->check_user_agent()) return http_response_code(401);
+		if (!$this->check_user_callsign()) {
+			echo '0000';
+			return;
+		}
+		if (!$this->check_user_request()) return http_response_code(429);
+		
+		$this->is_valid = true;
+	}
 	
-	function set_sqwk_range($key,$text) {
-		if ($text=='') {
-			$codes = array();			
+	private function check_connection() {
+		// check IP address
+		if (isset($_SERVER['HTTP_CLIENT_IP']))
+			$client_ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+		else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+			$client_ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+		else if(isset($_SERVER['HTTP_X_FORWARDED']))
+			$client_ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+		else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
+			$client_ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+		else if(isset($_SERVER['HTTP_FORWARDED']))
+			$client_ipaddress = $_SERVER['HTTP_FORWARDED'];
+		else if(isset($_SERVER['REMOTE_ADDR']))
+			$client_ipaddress = $_SERVER['REMOTE_ADDR'];
+		else
+			$client_ipaddress = 'UNKNOWN';
+
+		$this->logtext_prefix = date("c").";".$client_ipaddress.";".$_SERVER['HTTP_USER_AGENT'].";$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI];".$this->is_debug.";".$_GET['callsign'].";";
+		$this->client_ipaddress = intval(gmp_import(inet_pton($client_ipaddress)));
+		
+		if (inet_pton($client_ipaddress)) return true;
+		$this->write_log("IP address detection issue;HTTP_CLIENT_IP:$_SERVER[HTTP_CLIENT_IP],HTTP_X_FORWARDED_FOR:$_SERVER[HTTP_X_FORWARDED_FOR],HTTP_X_FORWARDED:$_SERVER[HTTP_X_FORWARDED],HTTP_FORWARDED_FOR:$_SERVER[HTTP_FORWARDED_FOR],HTTP_FORWARDED:$_SERVER[HTTP_FORWARDED],REMOTE_ADDR:$_SERVER[REMOTE_ADDR]");
+	}
+	
+	private function check_user_agent() {
+		if (preg_match('/EuroScope CCAMS\/(1\.7|2\.[01])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		$this->write_log("user agent not authorised");
+		return false;
+	}
+	
+	private function check_user_callsign() {
+		if (!array_key_exists('callsign',$_GET)) return false;
+		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$_GET['callsign'])) return true;
+		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
+		$this->write_log("user callsign not authorised");
+		return false;
+	}
+	
+	private function check_user_request() {
+		if ($this->users = $this->read_cache_file('/cache/users.bin')) {
+			if (time()-$this->users[$this->client_ipaddress][1] < 3) {
+				$this->write_log("spam protection;multiple joint requests detected");
+				return false;
+			}
+			$this->users[$this->client_ipaddress][0] -= pow(2,floor((time()-$this->users[$this->client_ipaddress][1])/60))-1;	// reduce count depending on the time of the last request
+			if ($this->users[$this->client_ipaddress][0] <= 0) unset($this->users[$this->client_ipaddress]);
+			elseif ($this->users[$this->client_ipaddress][0] > 15) {
+				$this->write_log("spam protection;too many requests from specific IP");
+				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br />');
+				return false;
+			}
 		} else {
-			if (!preg_match_all('/([A-Z]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
-
-			foreach ($m[0] as $k0 => $m0) {
-				$orig = strtolower($m[1][$k0]);
-				if (strlen($m[4][$k0])<2) $dest = 'zzzz';
-				else $dest = strtolower($m[4][$k0]);
-
-				$codes[$orig][$dest][] = octdec($m[2][$k0]);
-				if (!empty($m[3][$k0])) {
-					$codes[$orig][$dest][] = octdec($m[3][$k0]);
-				} else {
-					$codes[$orig][$dest][] = octdec($m[2][$k0]);
-				}
-			}
+			$this->users = array();
 		}
-		$this->write_cache_file('/cache/ranges.bin',$codes,$key);
+		
+		// increase count of user
+		if (isset($this->users[$this->client_ipaddress])) $this->users[$this->client_ipaddress][0] += 1;
+		else $this->users[$this->client_ipaddress][0] = 1;
+		$this->users[$this->client_ipaddress][1] = time();
+		return $this->write_cache_file('/cache/users.bin',$this->users);
 	}
 	
-	function get_squawk_range($key) {
-		// depreciated
-		$text = '';
-		if ($codes = $this->read_cache_file('/cache/ranges.bin',$key)) {
-			foreach ($codes as $orig => $group) {
-				foreach ($group as $dest => $range) {
-					$text .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
-					if ($range[1]!=$range[0]) $text .= ':'.sprintf("%04o",$range[1]);
-					if ($dest!='zzzz') $text .= ':'.strtoupper($dest);
-				}
-			}
-		}
-		return $text;
-	}
-	
-	function get_sqwk_ranges() {
-		$json = array();
-		if ($codes = $this->read_cache_file('/cache/ranges.bin')) {
-			foreach ($codes as $table => $category) {
-				$txt = '';
-				foreach ($category as $orig => $group) {
-					foreach ($group as $dest => $range) {
-						$txt .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
-						if ($range[1]!=$range[0]) $txt .= ':'.sprintf("%04o",$range[1]);
-						if ($dest!='zzzz') $txt .= ':'.strtoupper($dest);
-					}
-				}
-				$json[$table] = trim($txt);
-			}
-		}
-		return json_encode($json);
-	}
-
-	function get_reserved_codes() {
-		$json = array();
-		if ($codes = $this->read_cache_file('/cache/squawks.bin')) {
-			ksort($codes);
-			$txt = '';
-			foreach ($codes as $squawk => $time) {
-				$txt .= "\n".sprintf("%04o",$squawk)."\t".date('Y-m-d H:i:s',$time);
-			}
-		}
-		return json_encode(array(trim($txt)));
-	}
-
 	function request_code() {
 		if (!$this->is_valid) return;
 		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
@@ -184,116 +190,6 @@ class CCAMS {
 		return $resp;
 	}
 	
-	function authenticate() {
-		//return http_response_code(401);
-		if (!$this->check_connection()) return http_response_code(406);
-		if (!$this->check_user_agent()) return http_response_code(401);
-		if (!$this->check_user_callsign()) {
-			echo '0000';
-			return;
-		}
-		if (!$this->check_user_request()) return http_response_code(429);
-		
-		$this->is_valid = true;
-	}
-	
-	function check_reserved_codes() {
-		if (($codes = $this->read_cache_file('/cache/squawks.bin'))!==false) {
-			foreach ($codes as $code => $time) {
-				if ($time <= time()) unset($codes[$code]);
-			}
-			return $codes;
-		}
-		return array();
-	}
-	
-	function clean_squawk_cache() {
-		//if (($codes = $this->check_reserved_codes())!==false) 
-		if ($this->networkmode) $this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
-	}
-	
-	function get_logs() {
-		if (($logfiles = glob(__DIR__.$this->f_log.$this->logfile_prefix.'*'))!==false) {
-			rsort($logfiles);
-			foreach ($logfiles as $file) {
-				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
-				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
-				$logs['day'][$date->format('Y-m-d')] = '';
-				$logs['week'][$date->format('W')] = '';
-				$logs['month'][$date->format('F Y')] = '';
-			}
-			foreach ($logs as $key => $value) {
-				$resp[$key] = array_keys($value);
-			}
-			//array_unique($resp, SORT_STRING);
-			return json_encode($resp);
-		}
-		return false;
-	}
-	
-	private function check_connection() {
-		// check IP address
-		if (isset($_SERVER['HTTP_CLIENT_IP']))
-			$client_ipaddress = $_SERVER['HTTP_CLIENT_IP'];
-		else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
-			$client_ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
-		else if(isset($_SERVER['HTTP_X_FORWARDED']))
-			$client_ipaddress = $_SERVER['HTTP_X_FORWARDED'];
-		else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
-			$client_ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
-		else if(isset($_SERVER['HTTP_FORWARDED']))
-			$client_ipaddress = $_SERVER['HTTP_FORWARDED'];
-		else if(isset($_SERVER['REMOTE_ADDR']))
-			$client_ipaddress = $_SERVER['REMOTE_ADDR'];
-		else
-			$client_ipaddress = 'UNKNOWN';
-
-		$this->logtext_prefix = date("c").";".$client_ipaddress.";".$_SERVER['HTTP_USER_AGENT'].";$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI];".$this->is_debug.";".$_GET['callsign'].";";
-		$this->client_ipaddress = intval(gmp_import(inet_pton($client_ipaddress)));
-		
-		if (inet_pton($client_ipaddress)) return true;
-		$this->write_log("IP address detection issue;HTTP_CLIENT_IP:$_SERVER[HTTP_CLIENT_IP],HTTP_X_FORWARDED_FOR:$_SERVER[HTTP_X_FORWARDED_FOR],HTTP_X_FORWARDED:$_SERVER[HTTP_X_FORWARDED],HTTP_FORWARDED_FOR:$_SERVER[HTTP_FORWARDED_FOR],HTTP_FORWARDED:$_SERVER[HTTP_FORWARDED],REMOTE_ADDR:$_SERVER[REMOTE_ADDR]");
-	}
-	
-	private function check_user_agent() {
-		if (preg_match('/EuroScope CCAMS\/(1\.7|2\.[01])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
-		$this->write_log("user agent not authorised");
-		return false;
-	}
-	
-	private function check_user_callsign() {
-		if (!array_key_exists('callsign',$_GET)) return false;
-		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$_GET['callsign'])) return true;
-		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
-		$this->write_log("user callsign not authorised");
-
-		return false;
-	}
-	
-	private function check_user_request() {
-		if ($this->users = $this->read_cache_file('/cache/users.bin')) {
-			if (time()-$this->users[$this->client_ipaddress][1] < 3) {
-				$this->write_log("spam protection;multiple joint requests detected");
-				return false;
-			}
-			$this->users[$this->client_ipaddress][0] -= pow(2,floor((time()-$this->users[$this->client_ipaddress][1])/60))-1;	// reduce count depending on the time of the last request
-			if ($this->users[$this->client_ipaddress][0] <= 0) unset($this->users[$this->client_ipaddress]);
-			elseif ($this->users[$this->client_ipaddress][0] > 15) {
-				$this->write_log("spam protection;too many requests from specific IP");
-				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br />');
-				return false;
-			}
-		} else {
-			$this->users = array();
-		}
-		
-		// increase count of user
-		if (isset($this->users[$this->client_ipaddress])) $this->users[$this->client_ipaddress][0] += 1;
-		else $this->users[$this->client_ipaddress][0] = 1;
-		$this->users[$this->client_ipaddress][1] = time();
-		return $this->write_cache_file('/cache/users.bin',$this->users);
-	}
-	
 	private function codes_used() {
 		$codes = array();
 		$this->usedcodes = array();
@@ -324,6 +220,21 @@ class CCAMS {
 		return array_unique($codes);
 	}
 	
+	function check_reserved_codes() {
+		if (($codes = $this->read_cache_file('/cache/squawks.bin'))!==false) {
+			foreach ($codes as $code => $time) {
+				if ($time <= time()) unset($codes[$code]);
+			}
+			return $codes;
+		}
+		return array();
+	}
+	
+	function clean_squawk_cache() {
+		//if (($codes = $this->check_reserved_codes())!==false) 
+		if ($this->networkmode) $this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
+	}
+	
 	private function reserve_code($code,$seconds) {
 		// code in octal format (as displayed for use, numbers 0-7 only)
 		if (octdec($code)%64==0) return false;	// disregard non-discrete codes (they don't need to return true as they will be removed from the possible range anyway)
@@ -343,7 +254,6 @@ class CCAMS {
 	
 	private function squawk_from_range() {
 		if (!$this->squawkranges) return false;
-		$this->srange_keys = array_keys($this->squawkranges);	// currently not used
 
 		$vatspy = $this->read_cache_file($this->f_bin.'vatspy.bin');
 		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+)_.+/m','$1',$_GET['callsign']));
@@ -382,14 +292,7 @@ class CCAMS {
 	}
 	
 	
-/*	private function find_squawk($needle, $condition = 'zzzz') {
-
-	}
-*/	
 	private function get_range_code(array $searches, array $conditions) {
-		// $rangekey: th
-		//if (!array_key_exists($rangekey,$this->squawkranges)) return false;	// check the that the required range table is available
-		
 		// completition of the $conditions array
 		$conditions[] = 'zzzz';
 		$conditions = array_unique($conditions);
@@ -426,21 +329,6 @@ class CCAMS {
 		return false;
 	}
 	
-/*	private function get_range_code_old($needle, $rangekey, $condition = 'zzzz') {
-		if ($this->is_debug) echo 'scanning range in '.$rangekey.' table for match with '.$needle.', condition is '.$condition.'<br />';
-		if (array_key_exists($rangekey,$this->squawkranges)) {
-			if (array_key_exists($needle,$this->squawkranges[$rangekey])) {
-				if (array_key_exists($condition,$this->squawkranges[$rangekey][$needle])) {
-					for ($code = $this->squawkranges[$rangekey][$needle][$condition][0];$code<=$this->squawkranges[$rangekey][$needle][$condition][1];$code++) {
-						if ($this->is_debug) echo 'testing code '.$code.'<br />';
-						if (array_key_exists($code,$this->squawk)) return $code;
-					}
-				}
-			}
-		}
-		return false;
-	}
-*/	
 	private function read_cache_file($file, $key = '') {
 		if (file_exists($this->root.$file)) {
 			if (($data = unserialize(file_get_contents($this->root.$file)))!==false) {
