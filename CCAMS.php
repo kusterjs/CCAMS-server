@@ -83,7 +83,7 @@ class CCAMS {
 		else
 			$client_ipaddress = 'UNKNOWN';
 
-		$this->logtext_prefix = date("c").";".$client_ipaddress.";".$_SERVER['HTTP_USER_AGENT'].";$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI];".$this->is_debug.";".$_GET['callsign'].";";
+		$this->logtext_prefix = date("c").";".$client_ipaddress.";".$_SERVER['HTTP_USER_AGENT'].";$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI];".$this->is_debug.";".filter_input(INPUT_GET,'callsign').";";
 		$this->client_ipaddress = intval(gmp_import(inet_pton($client_ipaddress)));
 		
 		if (inet_pton($client_ipaddress)) return true;
@@ -91,14 +91,14 @@ class CCAMS {
 	}
 	
 	private function check_user_agent() {
-		if (preg_match('/EuroScope CCAMS\/(1\.7|2\.[01])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(1\.7|2\.[0123])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
 		$this->write_log("user agent not authorised");
 		return false;
 	}
 	
 	private function check_user_callsign() {
 		if (!array_key_exists('callsign',$_GET)) return false;
-		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$_GET['callsign'])) return true;
+		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',filter_input(INPUT_GET,'callsign'))) return true;
 		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
 		$this->write_log("user callsign not authorised");
 		return false;
@@ -106,7 +106,7 @@ class CCAMS {
 	
 	private function check_user_request() {
 		if ($this->users = $this->read_cache_file('/cache/users.bin')) {
-			if (time()-$this->users[$this->client_ipaddress][1] < 3) {
+			if (time()-$this->users[$this->client_ipaddress][1] < 2) {
 				$this->write_log("spam protection;multiple joint requests detected");
 				return false;
 			}
@@ -131,8 +131,6 @@ class CCAMS {
 	function request_code() {
 		if (!$this->is_valid) return;
 		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
-		echo var_dump(debug_backtrace()).'<br><br>';
-		//if (!array_key_exists('callsign',$_GET)) return;
 
 		// generate an array with all possible squawk codes
 		$squawk = array_fill(0,4095,'');
@@ -143,9 +141,9 @@ class CCAMS {
 		}
 
 		// activate network mode (instead of local mode (for sweatbox, simulator))
-		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !($_GET('connectiontype')==1 || $_GET('connectiontype')==2)))) {
+		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !(filter_input(INPUT_GET,'connectiontype')=='1' || filter_input(INPUT_GET,'connectiontype')=='2')))) {
 			$this->networkmode = true;
-			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? $_GET('connectiontype') : 'false').')<br />';
+			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br />';
 		}
 
 		// removed codes already in use
@@ -213,7 +211,7 @@ class CCAMS {
 
 		// exclude all codes already known to be assigned by the controller asking for a code
 		if (array_key_exists('codes',$_GET)) {
-			foreach (explode(',',$_GET['codes']) as $code) {
+			foreach (explode(',',filter_input(INPUT_GET,'codes')) as $code) {
 				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
 			}
 		}
@@ -256,14 +254,14 @@ class CCAMS {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_cache_file($this->f_bin.'vatspy.bin');
-		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+)_.+/m','$1',$_GET['callsign']));
-		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower($_GET['orig']);
+		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+)_.+/m','$1',filter_input(INPUT_GET,'callsign')));
+		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 		
 		$conditions = array();
-		if (array_key_exists('flightrule',$_GET)) if ($_GET['flightrule']=='V') $conditions[] = 'vfr';
-		if (array_key_exists('flightrules',$_GET)) if ($_GET['flightrules']=='V') $conditions[] = 'vfr';
+		if (array_key_exists('flightrule',$_GET)) if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
+		if (array_key_exists('flightrules',$_GET)) if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
 		if ($dest = array_key_exists('dest',$_GET)) {
-			$dest = strtolower($_GET['dest']);
+			$dest = strtolower(filter_input(INPUT_GET,'dest'));
 			for ($len=strlen($dest);$len>1;$len--) {
 				$conditions[] = substr($dest,0,$len);
 			}
@@ -290,7 +288,6 @@ class CCAMS {
 		if ($code = $this->get_range_code($searches,$conditions)) return $code;
 		return false;
 	}
-	
 	
 	private function get_range_code(array $searches, array $conditions) {
 		// completition of the $conditions array
@@ -517,5 +514,7 @@ class CCAMSstats {
 	}
 }
 	
+
+
 
 ?>
