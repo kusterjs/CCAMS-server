@@ -91,7 +91,7 @@ class CCAMS {
 	}
 	
 	private function check_user_agent() {
-		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(1\.7|2\.[0123])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(2\.[03])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
 		$this->write_log("user agent not authorised");
 		return false;
 	}
