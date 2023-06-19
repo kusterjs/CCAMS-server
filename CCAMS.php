@@ -119,7 +119,7 @@ class CCAMS {
 			}
 
 			$this->users[$this->client_ipaddress][0] -= pow(2,floor((time()-$this->users[$this->client_ipaddress][1])/60))-1;	// reduce count depending on the time of the last request
-			if ($this->users[$this->client_ipaddress][0] <= 0) unset($this->users[$this->client_ipaddress]);
+			if ($this->users[$this->client_ipaddress][0] <= 0) $this->users[$this->client_ipaddress][0] = 0;
 			elseif ($this->users[$this->client_ipaddress][0] > 15) {
 				$this->write_log("spam protection;too many requests from specific IP");
 				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br />');
@@ -250,7 +250,18 @@ class CCAMS {
 	
 	function clean_squawk_cache() {
 		//if (($codes = $this->check_reserved_codes())!==false) 
-		if ($this->networkmode) $this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
+		$this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
+	}
+
+	function clean_user_cache() {
+		if (($users = $this->read_cache_file('/cache/users.bin'))!==false) {
+			foreach ($users as $ip => $user) {
+				if (time()-$user[1] > 600) {
+					unset($users[$ip]);
+				}
+			}
+			$this->write_cache_file('/cache/users.bin',$users);
+		}
 	}
 	
 	private function reserve_code($code,$seconds) {
@@ -346,7 +357,7 @@ class CCAMS {
 		return false;
 	}
 	
-	private function read_cache_file($file, $key = '') {
+	function read_cache_file($file, $key = '') {
 		if (file_exists($this->root.$file)) {
 			if (($data = unserialize(file_get_contents($this->root.$file)))!==false) {
 				if (!empty($key) && array_key_exists($key,$data)) return $data[$key];
