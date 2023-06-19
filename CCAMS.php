@@ -105,11 +105,19 @@ class CCAMS {
 	}
 	
 	private function check_user_request() {
-		if ($this->users = $this->read_cache_file('/cache/users.bin')) {
+		if (!$this->users = $this->read_cache_file('/cache/users.bin')) {
+			// create an empty array if the bin file couldn't been read
+			$this->users = array();
+		}
+
+		if (isset($this->users[$this->client_ipaddress])) {
+			// check details of IP address which has already an entry
+
 			if (time()-$this->users[$this->client_ipaddress][1] < 2) {
 				$this->write_log("spam protection;multiple joint requests detected");
 				return false;
 			}
+
 			$this->users[$this->client_ipaddress][0] -= pow(2,floor((time()-$this->users[$this->client_ipaddress][1])/60))-1;	// reduce count depending on the time of the last request
 			if ($this->users[$this->client_ipaddress][0] <= 0) unset($this->users[$this->client_ipaddress]);
 			elseif ($this->users[$this->client_ipaddress][0] > 15) {
@@ -117,14 +125,26 @@ class CCAMS {
 				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br />');
 				return false;
 			}
+
+			// increase IP address count
+			$this->users[$this->client_ipaddress][0] += 1;
 		} else {
-			$this->users = array();
+			// set initial count for a new IP address
+			$this->users[$this->client_ipaddress][0] = 1;
 		}
-		
-		// increase count of user
-		if (isset($this->users[$this->client_ipaddress])) $this->users[$this->client_ipaddress][0] += 1;
-		else $this->users[$this->client_ipaddress][0] = 1;
+
+		// update timestamp
 		$this->users[$this->client_ipaddress][1] = time();
+		
+		// update compare hash
+		$cmp = filter_input(INPUT_GET,'callsign');
+		if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
+		if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
+		if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
+		if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
+		$this->users[$this->client_ipaddress][2] = md5($cmp);
+
+		// write cache file
 		return $this->write_cache_file('/cache/users.bin',$this->users);
 	}
 	
