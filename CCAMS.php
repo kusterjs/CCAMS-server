@@ -91,7 +91,7 @@ class CCAMS {
 	}
 	
 	private function check_user_agent() {
-		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(2\.[03])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(2\.[3])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
 		$this->write_log("user agent not authorised");
 		return false;
 	}
@@ -110,10 +110,17 @@ class CCAMS {
 			$this->users = array();
 		}
 
+		// create compare hash
+		$hash = filter_input(INPUT_GET,'callsign');
+		if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
+		if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
+		if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
+		if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
+
 		if (isset($this->users[$this->client_ipaddress])) {
 			// check details of IP address which has already an entry
 
-			if (time()-$this->users[$this->client_ipaddress][1] < 2) {
+			if (time()-$this->users[$this->client_ipaddress][1] < 2 && $this->users[$this->client_ipaddress][2]==md5($hash)) {
 				$this->write_log("spam protection;multiple joint requests detected");
 				return false;
 			}
@@ -137,12 +144,7 @@ class CCAMS {
 		$this->users[$this->client_ipaddress][1] = time();
 		
 		// update compare hash
-		$cmp = filter_input(INPUT_GET,'callsign');
-		if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
-		if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
-		if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
-		if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
-		$this->users[$this->client_ipaddress][2] = md5($cmp);
+		$this->users[$this->client_ipaddress][2] = md5($hash);
 
 		// write cache file
 		return $this->write_cache_file('/cache/users.bin',$this->users);
