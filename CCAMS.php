@@ -91,7 +91,15 @@ class CCAMS {
 	}
 	
 	private function check_user_agent() {
-		if (preg_match('/EuroScope(\s[0-9\.]+\splug-in:)?\sCCAMS\/(2\.[3])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
+		if (preg_match('/neoradar\/([\.\d]+)/',$_SERVER['HTTP_USER_AGENT'])) return true;
+
+		// activate network mode (instead of local mode (for sweatbox, simulator))
+		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !(filter_input(INPUT_GET,'connectiontype')=='1' || filter_input(INPUT_GET,'connectiontype')=='2')))) {
+			$this->networkmode = true;
+			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br />';
+		}
+
+		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/(2\.[3])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
 		$this->write_log("user agent not authorised");
 		return false;
 	}
@@ -160,12 +168,6 @@ class CCAMS {
 		// remove all non-discrete codes from possible results
 		foreach ($squawk as $code => $val) {
 			if ($code%64==0) unset($squawk[$code]);
-		}
-
-		// activate network mode (instead of local mode (for sweatbox, simulator))
-		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !(filter_input(INPUT_GET,'connectiontype')=='1' || filter_input(INPUT_GET,'connectiontype')=='2')))) {
-			$this->networkmode = true;
-			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br />';
 		}
 
 		// removed codes already in use
