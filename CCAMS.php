@@ -300,7 +300,11 @@ class CCAMS {
 			for ($len=strlen($dest);$len>1;$len--) {
 				$conditions[] = substr($dest,0,$len);
 			}
-		}
+			if ($vatspy) {
+				if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
+				if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
+			}
+			}
 		
 		// collecting search key words for the search in the APT table
 		$search = array();
