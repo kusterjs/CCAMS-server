@@ -120,10 +120,10 @@ class CCAMS {
 
 		// create compare hash
 		$hash = filter_input(INPUT_GET,'callsign');
-		if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
-		if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
-		if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
-		if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
+		// if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
+		// if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
+		// if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
+		// if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
 
 		if (isset($this->users[$this->client_ipaddress])) {
 			// check details of IP address which has already an entry
@@ -179,19 +179,31 @@ class CCAMS {
 		//echo var_dump($squawk);
 		$this->squawkranges = $this->read_cache_file('/cache/ranges.bin');
 		if (!($ssr = $this->squawk_from_range())) {
-			// if there is no key found, start preparing $squawk for assigning a random code (removing all known FIR ranges from it)
-			if (array_key_exists('FIR',$this->squawkranges)) {
-				foreach ($this->squawkranges['FIR'] as $rangename) {
-					for ($code = $rangename['zzzz'][0];$code<=$rangename['zzzz'][1];$code++) {
-						unset($squawk[$code]);
-					}
-				}
-			}
+			// if there is no key found, start preparing $squawk for assigning a random code
 			// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
 			foreach ($squawk as $code => $code) {
 				if ($code<64) unset($squawk[$code]);
 			}
+			$this->squawk = $squawk;
+			// revised table of assignable codes
+			
+			// removing all known FIR ranges from it
+			if (array_key_exists('FIR',$this->squawkranges)) {
+				foreach ($this->squawkranges['FIR'] as $rangename) {
+					foreach ($rangename as $rangecondition) {
+						foreach ($rangecondition as $range) {
+							for ($code = $range[0];$code<=$range[1];$code++) {
+								unset($squawk[$code]);
+							}
+						}
+					}
+				}
+			}
 
+			if (count($squawk) == 0) {
+				// if no codes are left, select a random code but disregarding all known FIR ranges
+				$squawk = $this->squawk;
+			}
 			if ($this->is_debug) echo 'selecting a random squawk<br />';
 			$ssr = array_rand($squawk);
 		}
@@ -289,7 +301,7 @@ class CCAMS {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_cache_file($this->f_bin.'vatspy.bin');
-		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+)_.+/m','$1',filter_input(INPUT_GET,'callsign')));
+		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+(?:_[A-Z0-9]+)?)_[A-Z]+$/m','$1',filter_input(INPUT_GET,'callsign')));
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 		
 		$conditions = array();
@@ -304,7 +316,7 @@ class CCAMS {
 				if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
 				if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
 			}
-			}
+		}
 		
 		// collecting search key words for the search in the APT table
 		$search = array();
@@ -321,7 +333,7 @@ class CCAMS {
 			if ($iata = array_search($callsign,$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
 			if ($icao = array_search($callsign,$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
 		}
-		for ($len = strlen($callsign)-1; $len>1; $len--) $search[] = substr($callsign,0,$len);
+		for ($len = min(strlen($callsign)-1,stripos($callsign,'_')); $len>1; $len--) $search[] = substr($callsign,0,$len);
 		$searches['FIR'] = array_unique($search);		
 
 		if ($code = $this->get_range_code($searches,$conditions)) return $code;
@@ -347,13 +359,16 @@ class CCAMS {
 				foreach ($conditions as $condition) {
 					if ($this->is_debug) echo 'scanning range in '.$tablekey.' table for match with '.$needle.', condition is '.$condition.'<br />';
 					foreach (array_keys($this->squawkranges[$tablekey]) as $rangename) {
-						if (substr($rangename,0,strlen($needle))==$needle) {
+						// if (substr($rangename,0,strlen($needle))==$needle) {
+						if ($rangename == $needle) {
 							if (array_key_exists($condition,$this->squawkranges[$tablekey][$rangename])) {
-								for ($code = $this->squawkranges[$tablekey][$rangename][$condition][0];$code<=$this->squawkranges[$tablekey][$rangename][$condition][1];$code++) {
-									if ($this->is_debug) echo 'probing code '.$code.'<br />';
-									if (array_key_exists($code,$this->squawk)) return $code;
-									else {
-										if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
+								foreach ($this->squawkranges[$tablekey][$rangename][$condition] as $range) {
+									for ($code = $range[0];$code<=$range[1];$code++) {
+										if ($this->is_debug) echo 'probing code '.$code.'<br />';
+										if (array_key_exists($code,$this->squawk)) return $code;
+										else {
+											if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
+										}
 									}
 								}
 							}
@@ -400,37 +415,17 @@ class CCAMS {
 		if ($text=='') {
 			$codes = array();			
 		} else {
-			if (!preg_match_all('/([A-Z]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
+			if (!preg_match_all('/([A-Z0-9_]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
 
 			foreach ($m[0] as $k0 => $m0) {
 				$orig = strtolower($m[1][$k0]);
-				if (strlen($m[4][$k0])<2) $dest = 'zzzz';
-				else $dest = strtolower($m[4][$k0]);
+				if (strlen($m[4][$k0])<2) $needle = 'zzzz';
+				else $needle = strtolower($m[4][$k0]);
 
-				$codes[$orig][$dest][] = octdec($m[2][$k0]);
-				if (!empty($m[3][$k0])) {
-					$codes[$orig][$dest][] = octdec($m[3][$k0]);
-				} else {
-					$codes[$orig][$dest][] = octdec($m[2][$k0]);
-				}
+				$codes[$orig][$needle][] = array(octdec($m[2][$k0]), (!empty($m[3][$k0])) ? octdec($m[3][$k0]) : octdec($m[2][$k0]));
 			}
 		}
 		$this->write_cache_file('/cache/ranges.bin',$codes,$key);
-	}
-	
-	function get_squawk_range($key) {
-		// depreciated
-		$text = '';
-		if ($codes = $this->read_cache_file('/cache/ranges.bin',$key)) {
-			foreach ($codes as $orig => $group) {
-				foreach ($group as $dest => $range) {
-					$text .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
-					if ($range[1]!=$range[0]) $text .= ':'.sprintf("%04o",$range[1]);
-					if ($dest!='zzzz') $text .= ':'.strtoupper($dest);
-				}
-			}
-		}
-		return $text;
 	}
 	
 	function get_sqwk_ranges() {
@@ -439,10 +434,11 @@ class CCAMS {
 			foreach ($codes as $table => $category) {
 				$txt = '';
 				foreach ($category as $orig => $group) {
-					foreach ($group as $dest => $range) {
-						$txt .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]);
-						if ($range[1]!=$range[0]) $txt .= ':'.sprintf("%04o",$range[1]);
-						if ($dest!='zzzz') $txt .= ':'.strtoupper($dest);
+					foreach ($group as $needle => $ranges) {
+						foreach ($ranges as $range) {
+							$txt .= "\n".strtoupper($orig).':'.sprintf("%04o",$range[0]).':'.sprintf("%04o",$range[1]);
+							if ($needle!='zzzz') $txt .= ':'.strtoupper($needle);
+						}
 					}
 				}
 				$json[$table] = trim($txt);
