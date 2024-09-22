@@ -37,8 +37,8 @@ class CCAMS {
 		if ($debug) {
 			$this->is_debug = true;
 			error_reporting(E_ALL);
-			//echo 'running CCAMS class<br />';
-			echo realpath(__FILE__).'<br />';
+			//echo 'running CCAMS class<br>';
+			echo realpath(__FILE__).'<br>';
 		} else {
 			$this->is_debug = false;
 			error_reporting(0);
@@ -46,7 +46,7 @@ class CCAMS {
 	}
 	
 	function __destruct() {
-		//if ($this->is_debug) echo 'End of CCAMS class<br />';
+		//if ($this->is_debug) echo 'End of CCAMS class<br>';
 	}
 	
 	function is_valid() {
@@ -96,7 +96,7 @@ class CCAMS {
 		// activate network mode (instead of local mode (for sweatbox, simulator))
 		if (!(array_key_exists('sim',$_GET) || (array_key_exists('connectiontype',$_GET) && !(filter_input(INPUT_GET,'connectiontype')=='1' || filter_input(INPUT_GET,'connectiontype')=='2')))) {
 			$this->networkmode = true;
-			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br />';
+			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br>';
 		}
 
 		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/(2\.[3])\.\d/',$_SERVER['HTTP_USER_AGENT']) || $this->is_debug) return true;
@@ -137,7 +137,7 @@ class CCAMS {
 			if ($this->users[$this->client_ipaddress][0] <= 0) $this->users[$this->client_ipaddress][0] = 0;
 			elseif ($this->users[$this->client_ipaddress][0] > 15) {
 				$this->write_log("spam protection;too many requests from specific IP");
-				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br />');
+				//exit('Too many requests. Your next code is available in '.(60-(time()-$this->users[$this->client_ipaddress][1])).' seconds.<br>');
 				return false;
 			}
 
@@ -204,7 +204,7 @@ class CCAMS {
 				// if no codes are left, select a random code but disregarding all known FIR ranges
 				$squawk = $this->squawk;
 			}
-			if ($this->is_debug) echo 'selecting a random squawk<br />';
+			if ($this->is_debug) echo 'selecting a random squawk<br>';
 			$ssr = array_rand($squawk);
 		}
 		$resp = sprintf("%04o",$ssr);
@@ -220,7 +220,7 @@ class CCAMS {
 		// create output
 		$this->write_log("code assigned;".$resp);
 		
-		if ($this->is_debug) $resp .= '<br />';
+		if ($this->is_debug) $resp .= '<br>';
 		return $resp;
 	}
 	
@@ -293,7 +293,7 @@ class CCAMS {
 			if ($this->usedcodes[octdec($code)] > $expiryTime) return false;
 		}
 		$this->usedcodes[octdec($code)] = $expiryTime;
-		if ($this->is_debug) echo 'reserving code '.octdec($code).'<br />';
+		if ($this->is_debug) echo 'reserving code '.octdec($code).'<br>';
 		return true;
 	}
 	
@@ -357,8 +357,8 @@ class CCAMS {
 			if (!array_key_exists($tablekey,$this->squawkranges)) continue;
 			foreach ($search as $needle) {
 				foreach ($conditions as $condition) {
-					if ($this->is_debug) echo 'scanning range in '.$tablekey.' table for match with '.$needle.', condition is '.$condition.'<br />';
-					if (array_key_exists($needle,array_keys($this->squawkranges[$tablekey]))) {
+					if ($this->is_debug) echo 'scanning range in '.$tablekey.' table for match with '.$needle.', condition is '.$condition.'<br>';
+					if (array_key_exists($needle,$this->squawkranges[$tablekey])) {
 						// look first for an exact match
 						if ($codesearch = $this->search_code_range($tablekey, $needle, $condition)) return $codesearch;
 					} else {
@@ -380,10 +380,10 @@ class CCAMS {
 		if (array_key_exists($condition,$this->squawkranges[$tablekey][$rangename])) {
 			foreach ($this->squawkranges[$tablekey][$rangename][$condition] as $range) {
 				for ($code = $range[0];$code<=$range[1];$code++) {
-					if ($this->is_debug) echo 'probing code '.$code.'<br />';
+					if ($this->is_debug) echo 'probing code '.$code.'<br>';
 					if (array_key_exists($code,$this->squawk)) return $code;
 					else {
-						if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
+						if ($this->is_debug) echo 'code '.$code.' already reserved<br>';
 					}
 				}
 			}
@@ -511,8 +511,8 @@ class CCAMSstats {
 		if ($debug) {
 			$this->is_debug = true;
 			error_reporting(E_ALL);
-			//echo 'running CCAMS class<br />';
-			echo realpath(__FILE__).'<br />';
+			//echo 'running CCAMS class<br>';
+			echo realpath(__FILE__).'<br>';
 		} else {
 			$this->is_debug = false;
 			error_reporting(0);
@@ -525,7 +525,7 @@ class CCAMSstats {
 		foreach ($logdata as $line) {
 			$data = explode(";",$line);
 			if (count($data)==9) $this->logdata[] = $data;
-			//echo var_dump($data).'<br />';
+			//echo var_dump($data).'<br>';
 		}
 		//echo var_dump($this->logdata);
 	}
