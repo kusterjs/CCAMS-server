@@ -333,7 +333,7 @@ class CCAMS {
 			if ($iata = array_search($callsign,$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
 			if ($icao = array_search($callsign,$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
 		}
-		for ($len = min(strlen($callsign)-1,stripos($callsign,'_')); $len>1; $len--) $search[] = substr($callsign,0,$len);
+		for ($len = (stripos($callsign,'_') > 0) ? stripos($callsign,'_') : strlen($callsign)-1; $len>1; $len--) $search[] = substr($callsign,0,$len);
 		$searches['FIR'] = array_unique($search);		
 
 		if ($code = $this->get_range_code($searches,$conditions)) return $code;
@@ -358,25 +358,37 @@ class CCAMS {
 			foreach ($search as $needle) {
 				foreach ($conditions as $condition) {
 					if ($this->is_debug) echo 'scanning range in '.$tablekey.' table for match with '.$needle.', condition is '.$condition.'<br />';
-					foreach (array_keys($this->squawkranges[$tablekey]) as $rangename) {
-						// if (substr($rangename,0,strlen($needle))==$needle) {
-						if ($rangename == $needle) {
-							if (array_key_exists($condition,$this->squawkranges[$tablekey][$rangename])) {
-								foreach ($this->squawkranges[$tablekey][$rangename][$condition] as $range) {
-									for ($code = $range[0];$code<=$range[1];$code++) {
-										if ($this->is_debug) echo 'probing code '.$code.'<br />';
-										if (array_key_exists($code,$this->squawk)) return $code;
-										else {
-											if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
-										}
-									}
-								}
+					if (array_key_exists($needle,array_keys($this->squawkranges[$tablekey]))) {
+						// look first for an exact match
+						if ($codesearch = $this->search_code_range($tablekey, $needle, $condition)) return $codesearch;
+					} else {
+						// otherwise, try partial matches
+						foreach (array_keys($this->squawkranges[$tablekey]) as $rangename) {
+							if (strcmp(substr($rangename,0,strlen($needle)),$needle) == 0) {
+								if ($codesearch = $this->search_code_range($tablekey, $rangename, $condition)) return $codesearch;
 							}
 						}
 					}
 				}
 			}
 		}
+		return false;
+	}
+
+	private function search_code_range($tablekey, $rangename, $condition) {
+		// searching in a specific table (APT or FIR) and range name for a code matching the condition
+		if (array_key_exists($condition,$this->squawkranges[$tablekey][$rangename])) {
+			foreach ($this->squawkranges[$tablekey][$rangename][$condition] as $range) {
+				for ($code = $range[0];$code<=$range[1];$code++) {
+					if ($this->is_debug) echo 'probing code '.$code.'<br />';
+					if (array_key_exists($code,$this->squawk)) return $code;
+					else {
+						if ($this->is_debug) echo 'code '.$code.' already reserved<br />';
+					}
+				}
+			}
+		}
+
 		return false;
 	}
 	
