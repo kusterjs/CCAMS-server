@@ -30,5 +30,12 @@ If the aiport and FIR transponder codes are all exhausted, or if no matching ent
 
 
 ## Changes / Improvements / Reports
-The current server configuration is available on https://ccams.kilojuliett.ch/.
-Local ops/tech staff may create an [issue](https://github.com/kusterjs/CCAMS-server/issues) on this GitHub to request a configuration change, to ensure compliance with regional and local transponder code ranges and schemes.
+The current live server configuration is available on https://ccams.kilojuliett.ch/.
+
+To ensure compliance with regional and local transponder code ranges and schemes, local ops/tech staff may request a configuration change by:
+* creating an [issue](https://github.com/kusterjs/CCAMS-server/issues) on this GitHub; or
+* directly start a [pull request](https://github.com/kusterjs/CCAMS-server/pulls) by editing the files in the folder [ranges](https://github.com/kusterjs/CCAMS-server/tree/main/ranges) as required
+
+The issue or pull requests will be closed upon implementation on the live environment.
+
+Any other reports regarding functionalities or fixes are welcome!
