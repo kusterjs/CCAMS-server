@@ -1,4 +1,8 @@
-/bin/
-/data/
-/log/
-/debug/
+bin/
+data/
+log/
+debug/
+
+cachedata.php
+clean.php
+test.php
