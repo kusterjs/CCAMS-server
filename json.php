@@ -2,10 +2,10 @@
 
 include_once('CCAMS.php');
 if (array_key_exists('debug',$_GET)) {
-	$CCAMS = new CCAMS('/../cron/bin/',true);
+	$CCAMS = new CCAMS(true);
 	$CCAMSstats = new CCAMSstats(true);
 } else {
-	$CCAMS = new CCAMS('/../cron/bin/');
+	$CCAMS = new CCAMS();
 	$CCAMSstats = new CCAMSstats();
 }
 

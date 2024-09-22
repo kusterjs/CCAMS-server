@@ -20,16 +20,16 @@ class CCAMS {
 	
 	private $squawk;	// the codes available for use
 
-	function __construct($f_bin, $debug = false)
+	function __construct($debug = false)
 	{
 		date_default_timezone_set("UTC");
-		include_once('../cron/vatsim.php');
+		include_once('vatsim.php');
 		
 		$this->timer = microtime(true);
 		$this->is_valid = false;
 		$this->networkmode = false;
 		$this->root = __DIR__;
-		$this->f_bin = $f_bin;
+		$this->f_bin = '/bin/';
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
 		$this->file_log = $this->f_log.$this->logfile_prefix.date('Y-m-d').'.txt';
@@ -113,7 +113,7 @@ class CCAMS {
 	}
 	
 	private function check_user_request() {
-		if (!$this->users = $this->read_cache_file('/cache/users.bin')) {
+		if (!$this->users = $this->read_bin_file('users.bin')) {
 			// create an empty array if the bin file couldn't been read
 			$this->users = array();
 		}
@@ -155,7 +155,7 @@ class CCAMS {
 		$this->users[$this->client_ipaddress][2] = md5($hash);
 
 		// write cache file
-		return $this->write_cache_file('/cache/users.bin',$this->users);
+		return $this->write_bin_file('users.bin',$this->users);
 	}
 	
 	function request_code() {
@@ -177,7 +177,7 @@ class CCAMS {
 		// the squawk variable contains now only the codes that can be assigned
 		
 		//echo var_dump($squawk);
-		$this->squawkranges = $this->read_cache_file('/cache/ranges.bin');
+		$this->squawkranges = $this->read_bin_file('ranges.bin');
 		if (!($ssr = $this->squawk_from_range())) {
 			// if there is no key found, start preparing $squawk for assigning a random code
 			// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
@@ -214,7 +214,7 @@ class CCAMS {
 			$this->reserve_code($resp,2*3600);
 		
 			// write cache files
-			$this->write_cache_file('/cache/squawks.bin',$this->usedcodes);
+			$this->write_bin_file('squawks.bin',$this->usedcodes);
 		}
 		
 		// create output
@@ -255,7 +255,7 @@ class CCAMS {
 	}
 	
 	function check_reserved_codes() {
-		if (($codes = $this->read_cache_file('/cache/squawks.bin'))!==false) {
+		if (($codes = $this->read_bin_file('squawks.bin'))!==false) {
 			foreach ($codes as $code => $time) {
 				if ($time <= time()) unset($codes[$code]);
 			}
@@ -266,17 +266,17 @@ class CCAMS {
 	
 	function clean_squawk_cache() {
 		//if (($codes = $this->check_reserved_codes())!==false) 
-		$this->write_cache_file('/cache/squawks.bin',$this->check_reserved_codes());
+		$this->write_bin_file('squawks.bin',$this->check_reserved_codes());
 	}
 
 	function clean_user_cache() {
-		if (($users = $this->read_cache_file('/cache/users.bin'))!==false) {
+		if (($users = $this->read_bin_file('users.bin'))!==false) {
 			foreach ($users as $ip => $user) {
 				if (time()-$user[1] > 600) {
 					unset($users[$ip]);
 				}
 			}
-			$this->write_cache_file('/cache/users.bin',$users);
+			$this->write_bin_file('users.bin',$users);
 		}
 	}
 	
@@ -300,7 +300,7 @@ class CCAMS {
 	private function squawk_from_range() {
 		if (!$this->squawkranges) return false;
 
-		$vatspy = $this->read_cache_file($this->f_bin.'vatspy.bin');
+		$vatspy = $this->read_bin_file('vatspy.bin');
 		$callsign = strtolower(preg_replace('/^([A-Za-z\-]+(?:_[A-Z0-9]+)?)_[A-Z]+$/m','$1',filter_input(INPUT_GET,'callsign')));
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 		
@@ -392,29 +392,30 @@ class CCAMS {
 		return false;
 	}
 	
-	function read_cache_file($file, $key = '') {
-		if (file_exists($this->root.$file)) {
-			if (($data = unserialize(file_get_contents($this->root.$file)))!==false) {
+	// generic functions to read and write files
+	function read_bin_file($file, $key = '') {
+		if (file_exists($this->root.$this->f_bin.$file)) {
+			if (($data = unserialize(file_get_contents($this->root.$this->f_bin.$file)))!==false) {
 				if (!empty($key) && array_key_exists($key,$data)) return $data[$key];
 				return $data;
 			}
 		}
-		$this->write_log("file reading error;cache ".$key);
+		$this->write_log("file reading error;bin file ".$key);
 		return false;
 	}
 	
-	private function write_cache_file($file, $data, $key = '') {
-		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__.", write_cache_file $file\n",FILE_APPEND);
+	private function write_bin_file($file, $data, $key = '') {
+		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
 		if (empty($key)) {
 			//if ($this->is_debug) echo var_dump(serialize($data)).'<br>';
-			if (file_put_contents($this->root.$file, serialize($data))) return true;
-		} else if (($d = $this->read_cache_file($file))!==false) {
+			if (file_put_contents($this->root.$this->f_bin.$file, serialize($data))) return true;
+		} else if (($d = $this->read_bin_file($file))!==false) {
 			$d[$key] = $data;
-			if (file_put_contents($this->root.$file, serialize($d))) return true;
+			if (file_put_contents($this->root.$this->f_bin.$file, serialize($d))) return true;
 		} else {
-			if (file_put_contents($this->root.$file, serialize(array()))) return true;
+			if (file_put_contents($this->root.$this->f_bin.$file, serialize(array()))) return true;
 		}
-		$this->write_log("file writing error;cache ".$key);
+		$this->write_log("file writing error;bin file ".$key);
 		return false;		
 	}
 	
@@ -437,12 +438,12 @@ class CCAMS {
 				$codes[$orig][$needle][] = array(octdec($m[2][$k0]), (!empty($m[3][$k0])) ? octdec($m[3][$k0]) : octdec($m[2][$k0]));
 			}
 		}
-		$this->write_cache_file('/cache/ranges.bin',$codes,$key);
+		$this->write_bin_file('ranges.bin',$codes,$key);
 	}
 	
 	function get_sqwk_ranges() {
 		$json = array();
-		if ($codes = $this->read_cache_file('/cache/ranges.bin')) {
+		if ($codes = $this->read_bin_file('ranges.bin')) {
 			foreach ($codes as $table => $category) {
 				$txt = '';
 				foreach ($category as $orig => $group) {
@@ -461,7 +462,7 @@ class CCAMS {
 	
 	function get_reserved_codes() {
 		$json = array();
-		if ($codes = $this->read_cache_file('/cache/squawks.bin')) {
+		if ($codes = $this->read_bin_file('squawks.bin')) {
 			ksort($codes);
 			$txt = '';
 			foreach ($codes as $squawk => $time) {
