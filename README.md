@@ -26,6 +26,7 @@ The server will identify the next available transponder code based on the airpor
 * any code already used by a pilot on the network
 * any code already used and detected by a plugin user
 * any code assigned to an aircraft and detected by a plugin user
+
 If the aiport and FIR transponder codes are all exhausted, or if no matching entry in any of these lists can be found, a random transponder code outside the preferential range will be used.
 
 
