@@ -8,6 +8,7 @@ class CCAMS {
 	private $networkmode;
 	private $client_ipaddress;
 	private $root;
+	private $f_config;
 	private $f_bin;
 	public $f_log;
 	private $file_log;
@@ -29,6 +30,7 @@ class CCAMS {
 		$this->is_valid = false;
 		$this->networkmode = false;
 		$this->root = __DIR__;
+		$this->f_config = '/config/';
 		$this->f_bin = '/bin/';
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
@@ -425,6 +427,17 @@ class CCAMS {
 
 	private function write_log($text) {
 		file_put_contents(__DIR__.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
+	}
+
+	function collect_sqwk_range_data() {
+		$rfiles = scandir($this->root.$this->f_config);
+		foreach ($rfiles as $rfile) {
+			$path_parts = pathinfo($rfile);
+			echo var_dump($path_parts);
+			if ($path_parts['extension'] == 'dat') {
+				$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
+			}
+		}
 	}
 
 	// the following functions are used for the website-based interactions (change and display codes)
