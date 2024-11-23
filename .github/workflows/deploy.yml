@@ -24,8 +24,6 @@ jobs:
 
     - name: Deploy code to server
       run: |
-<<<<<<< HEAD
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST} && git pull origin main"
-=======
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-/TEST} && git pull origin main"
->>>>>>> d6287a7ed8cd7fcbcc7dac55e29a9ac7a619e8e0
+
+        
