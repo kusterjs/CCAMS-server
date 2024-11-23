@@ -11,6 +11,9 @@ jobs:
 
     environment: Infomaniak
 
+    env:
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
