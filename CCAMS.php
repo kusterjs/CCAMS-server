@@ -510,6 +510,7 @@ class CCAMS {
 	}
 }
 
+
 class CCAMSstats {
 
 	private $is_debug;
