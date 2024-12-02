@@ -3,7 +3,7 @@ name: Deploy to Server
 on:
   push:
     branches:
-      - main
+      - deployment
 
 jobs:
   deploy:
@@ -28,7 +28,8 @@ jobs:
     - name: Deploy code to server
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST};
-        git pull --rebase;
+        git checkout deployment;
+        git pull origin;        
         php rangecollect.php;"
 
         
