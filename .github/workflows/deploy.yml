@@ -28,10 +28,12 @@ jobs:
     - name: Deploy code to server
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST};
-        mkdir log;
         git checkout main;
         git pull origin;
         mkdir bin;
+        mkdir data;
+        mkdir debug;
+        mkdir log;
         php rangecollect.php;"
 
         

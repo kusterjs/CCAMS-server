@@ -2,8 +2,3 @@ bin/
 data/
 log/
 debug/
-
-index.html
-cachedata.php
-clean.php
-test.php

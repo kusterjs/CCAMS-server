@@ -433,7 +433,6 @@ class CCAMS {
 		$rfiles = scandir($this->root.$this->f_config);
 		foreach ($rfiles as $rfile) {
 			$path_parts = pathinfo($rfile);
-			// echo var_dump($path_parts);
 			if ($path_parts['extension'] == 'dat') {
 				$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
 			}
