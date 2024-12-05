@@ -306,7 +306,7 @@ class CCAMS {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_bin_file('vatspy.bin');
-		if (!preg_match('/^([a-z\-]+)(_[a-z0-9]+)?_[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
+		if (!preg_match('/^([a-z\-]+)(_[a-z0-9]+)?_+[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 
 		// collect conditions
