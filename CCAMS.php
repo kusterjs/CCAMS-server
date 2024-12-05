@@ -409,7 +409,7 @@ class CCAMS {
 				return $data;
 			}
 		}
-		$this->write_log("file reading error;bin file ".$key);
+		$this->write_log("file reading error;bin file ".$file);
 		return false;
 	}
 
