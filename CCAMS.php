@@ -33,6 +33,7 @@ class CCAMS {
 		$this->f_config = '/config/';
 		$this->f_bin = '/bin/';
 		$this->f_log = '/log/';
+		$this->f_debug = '/debug/';
 		$this->logfile_prefix = 'log_';
 		$this->file_log = $this->f_log.$this->logfile_prefix.date('Y-m-d').'.txt';
 
@@ -162,7 +163,7 @@ class CCAMS {
 
 	function request_code() {
 		if (!$this->is_valid) return;
-		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
 
 		// generate an array with all possible squawk codes
 		$squawk = array_fill(0,4095,'');
@@ -235,6 +236,7 @@ class CCAMS {
 			$vdata = $vatsim->get_vdata();
 			foreach ($vdata['pilots'] as $pilot) {
 				if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
+				if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
 			}
 
 			// collect already reserved codes
@@ -411,7 +413,7 @@ class CCAMS {
 	}
 
 	private function write_bin_file($file, $data, $key = '') {
-		if ($this->is_debug) file_put_contents(__DIR__.'/debug/log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
 		if (empty($key)) {
 			//if ($this->is_debug) echo var_dump(serialize($data)).'<br>';
 			if (file_put_contents($this->root.$this->f_bin.$file, serialize($data))) return true;
