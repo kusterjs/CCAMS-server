@@ -10,6 +10,7 @@ class CCAMS {
 	private $root;
 	private $f_config;
 	private $f_bin;
+	private $f_debug;
 	public $f_log;
 	private $file_log;
 	public $logfile_prefix;
