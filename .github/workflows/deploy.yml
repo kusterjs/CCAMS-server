@@ -34,6 +34,10 @@ jobs:
         mkdir data;
         mkdir debug;
         mkdir log;
+        php clean.php;
+        php vatsim.php?r=vatsim-status;
+        php vatsim.php?r=vatsim-data;
+        php vatsim.php?r=vatspy-data;
         php rangecollect.php;"
 
         
