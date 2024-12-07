@@ -21,13 +21,13 @@ In order to determine the most appropriate transponder code for a specific fligh
 * aircraft position
 * the controller connection type
 
-The server will identify the next available transponder code based on the airport (1st priority) and FIR (2nd priority) transponder code list, excluding:
+The server will identify the next available transponder code (ascending in the matching code range) based on the airport (1st priority) and FIR (2nd priority) transponder code list, excluding:
 * any non-discrete (ending with 00) codes
-* any code already used by a pilot on the network
-* any code already used and detected by a plugin user
-* any code assigned to an aircraft and detected by a plugin user
+* any code already used by a pilot on the network (using the VATSIM JSON snapshot)
+* any code already used reported by an incoming request
+* any code assigned to an aircraft and reported by an incoming request
 
-If the aiport and FIR transponder codes are all exhausted, or if no matching entry in any of these lists can be found, a random transponder code outside the preferential range will be used.
+For departing aircraft, the [VATSpy](https://github.com/vatsimnetwork/vatspy-data-project) will be used to determine the FIR range if no airport range is defined. If the aiport and FIR transponder codes are all exhausted or if no matching entry in any of these lists can be found, a random transponder code outside the preferential range will be used.
 
 
 ## Changes / Improvements / Reports
@@ -35,7 +35,7 @@ The current live server configuration is available on https://ccams.kilojuliett.
 
 To ensure compliance with regional and local transponder code ranges and schemes, local ops/tech staff may request a configuration change by:
 * creating an [issue](https://github.com/kusterjs/CCAMS-server/issues) on this GitHub; or
-* directly start a [pull request](https://github.com/kusterjs/CCAMS-server/pulls) by editing the files in the folder [ranges](https://github.com/kusterjs/CCAMS-server/tree/main/ranges) as required
+* directly start a [pull request](https://github.com/kusterjs/CCAMS-server/pulls) by editing the files in the folder [config](https://github.com/kusterjs/CCAMS-server/tree/main/config) as required
 
 The issue or pull requests will be closed upon implementation on the live environment.
 
