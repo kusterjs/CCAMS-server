@@ -104,7 +104,7 @@ class CCAMS {
 			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br>';
 		}
 
-		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/(2\.[34])\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
+		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/(2\.[3-9])\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		$this->write_log("user agent not authorised");
 		return false;
