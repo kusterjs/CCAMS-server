@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>CCAMS statistics</title>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.6.2/dist/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!--<link rel="stylesheet" href="style.css">-->
 </head>
 <body>
@@ -16,11 +16,11 @@
 	<table>
 		<tr>
 			<td><div style="width: 800px"><canvas id="designatorChart"></canvas></div></td>
-			<td><div style="width: 800px"><canvas id="facilityChart"></canvas></div></td>
+			<td><div style="width: 400px"><canvas id="facilityChart"></canvas></div></td>
 		</tr>
 		<tr>
 			<td><div style="width: 800px"><canvas id="timeChart"></canvas></div></td>
-			<td><div style="width: 800px"><canvas id="versionChart"></canvas></div></td>
+			<td><div style="width: 400px"><canvas id="clientChart"></canvas></div></td>
 		</tr>
 		<tr>
 			<td><div style="width: 800px"><canvas id="weekRequestChart"></canvas></div></td>
@@ -42,6 +42,7 @@
 		data: {},
 		options: {
 			responsive: true,
+			indexAxis: 'y',
 			scales: {
 				y: {
 					beginAtZero: true
@@ -62,8 +63,8 @@
 		}
 	});	
 	var facilityChart = new Chart($('#facilityChart'), {
-		type: 'bar',
-		data: {},
+		type: 'doughnut',
+		data: {}/*,
 		options: {
 			responsive: true,
 			scales: {
@@ -71,7 +72,7 @@
 					beginAtZero: true
 				}
 			}
-		}
+		}*/
 	});	
 	var timeChart = new Chart($('#timeChart'), {
 		type: 'bar',
@@ -85,9 +86,9 @@
 			}
 		}
 	});	
-	var versionChart = new Chart($('#versionChart'), {
-		type: 'bar',
-		data: {},
+	var clientChart = new Chart($('#clientChart'), {
+		type: 'doughnut',
+		data: {}/*,
 		options: {
 			responsive: true,
 			scales: {
@@ -95,7 +96,7 @@
 					beginAtZero: true
 				}
 			}
-		}
+		}*/
 	});	
 	var weekRequestChart = new Chart($('#weekRequestChart'), {
 		type: 'bar',
@@ -142,7 +143,7 @@
 			csChart.data.datasets.pop();
 			facilityChart.data.datasets.pop();
 			timeChart.data.datasets.pop();
-			versionChart.data.datasets.pop();
+			clientChart.data.datasets.pop();
 			try {
 				var resp = JSON.parse(data);
 				
@@ -155,16 +156,16 @@
 				csChart.update();
 */				
 				facilityChart.data.labels = Object.keys(resp.facility);
-				facilityChart.data.datasets.push({label: 'Facilities', data: Object.values(resp.facility), backgroundColor: ['rgba(32,32,32,0.8)']});
+				facilityChart.data.datasets.push({label: 'Facilities', data: Object.values(resp.facility)});
 				facilityChart.update();
 
 				timeChart.data.labels = Object.keys(resp.hour);
 				timeChart.data.datasets.push({label: 'Hour (UTC)', data: Object.values(resp.hour), backgroundColor: ['rgba(32,32,32,0.8)']});
 				timeChart.update();
 
-				versionChart.data.labels = Object.keys(resp.version);
-				versionChart.data.datasets.push({label: 'Version', data: Object.values(resp.version), backgroundColor: ['rgba(32,32,32,0.8)']});
-				versionChart.update();
+				clientChart.data.labels = Object.keys(resp.client);
+				clientChart.data.datasets.push({label: 'Client', data: Object.values(resp.client)});
+				clientChart.update();
 
 			} catch (e) {
 				alert('Daily statistics incomplete')
