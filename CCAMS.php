@@ -126,10 +126,12 @@ class CCAMS {
 
 		// create compare hash
 		$hash = filter_input(INPUT_GET,'callsign');
-		// if (array_key_exists('orig',$_GET)) $cmp .= filter_input(INPUT_GET,'orig');
-		if (array_key_exists('dest',$_GET)) $cmp .= filter_input(INPUT_GET,'dest');
-		if (array_key_exists('latitude',$_GET)) $cmp .= filter_input(INPUT_GET,'latitude');
-		if (array_key_exists('longitude',$_GET)) $cmp .= filter_input(INPUT_GET,'longitude');
+		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.(4\.[7-9]|[5-9]\.\d)/',$_SERVER['HTTP_USER_AGENT'])) {
+			// if (array_key_exists('orig',$_GET)) $hash .= filter_input(INPUT_GET,'orig');
+			if (array_key_exists('dest',$_GET)) $hash .= filter_input(INPUT_GET,'dest');
+			if (array_key_exists('latitude',$_GET)) $hash .= filter_input(INPUT_GET,'latitude');
+			if (array_key_exists('longitude',$_GET)) $hash .= filter_input(INPUT_GET,'longitude');
+		}
 
 		if (isset($this->users[$this->client_ipaddress])) {
 			// check details of IP address which has already an entry
