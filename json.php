@@ -11,6 +11,8 @@ if (array_key_exists('debug',$_GET)) {
 
 if (array_key_exists('r',$_GET)) {
 	if (array_key_exists('date', $_POST)) $seldate = new DateTime($_POST['date']);
+	else $seldate = new DateTime('now');
+
 	switch ($_GET['r']) {
 		case 'get-ranges':
 			echo $CCAMS->get_sqwk_ranges();

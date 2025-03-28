@@ -147,24 +147,24 @@
 			try {
 				var resp = JSON.parse(data);
 				
-				designatorChart.data.labels = Object.keys(resp.designator);
-				designatorChart.data.datasets.push({label: 'Designator', data: Object.values(resp.designator), backgroundColor: ['rgba(32,32,32,0.8)']});
+				designatorChart.data.labels = Object.keys(resp[1].designator);
+				designatorChart.data.datasets.push({label: 'Designator', data: Object.values(resp[1].designator), backgroundColor: ['rgba(32,32,32,0.8)']});
 				designatorChart.update();
 				
-/*				csChart.data.labels = Object.keys(resp.callsign);
-				csChart.data.datasets.push({label: 'Call Signs', data: Object.values(resp.callsign)});
+/*				csChart.data.labels = Object.keys(resp[1].callsign);
+				csChart.data.datasets.push({label: 'Call Signs', data: Object.values(resp[1].callsign)});
 				csChart.update();
 */				
-				facilityChart.data.labels = Object.keys(resp.facility);
-				facilityChart.data.datasets.push({label: 'Facilities', data: Object.values(resp.facility)});
+				facilityChart.data.labels = Object.keys(resp[1].facility);
+				facilityChart.data.datasets.push({label: 'Facilities', data: Object.values(resp[1].facility)});
 				facilityChart.update();
 
-				timeChart.data.labels = Object.keys(resp.hour);
-				timeChart.data.datasets.push({label: 'Hour (UTC)', data: Object.values(resp.hour), backgroundColor: ['rgba(32,32,32,0.8)']});
+				timeChart.data.labels = Object.keys(resp[1].hour);
+				timeChart.data.datasets.push({label: 'Hour (UTC)', data: Object.values(resp[1].hour), backgroundColor: ['rgba(32,32,32,0.8)']});
 				timeChart.update();
 
-				clientChart.data.labels = Object.keys(resp.client);
-				clientChart.data.datasets.push({label: 'Client', data: Object.values(resp.client)});
+				clientChart.data.labels = Object.keys(resp[1].client);
+				clientChart.data.datasets.push({label: 'Client', data: Object.values(resp[1].client)});
 				clientChart.update();
 
 			} catch (e) {
@@ -179,8 +179,8 @@
 			try {
 				var resp = JSON.parse(data);
 				
-				weekRequestChart.data.labels = Object.keys(resp.date);
-				weekRequestChart.data.datasets.push({label: 'Daily Requests (week)', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				weekRequestChart.data.labels = Object.keys(resp[1].date);
+				weekRequestChart.data.datasets.push({label: 'Daily Requests (week)', data: Object.values(resp[1].date), backgroundColor: ['rgba(128,32,32,0.8)']});
 				weekRequestChart.update();
 
 			} catch (e) {
@@ -195,8 +195,8 @@
 			try {
 				var resp = JSON.parse(data);
 				
-				monthRequestChart.data.labels = Object.keys(resp.date);
-				monthRequestChart.data.datasets.push({label: 'Daily Requests (month)', data: Object.values(resp.date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				monthRequestChart.data.labels = Object.keys(resp[1].date);
+				monthRequestChart.data.datasets.push({label: 'Daily Requests (month)', data: Object.values(resp[1].date), backgroundColor: ['rgba(128,32,32,0.8)']});
 				monthRequestChart.update();
 
 			} catch (e) {

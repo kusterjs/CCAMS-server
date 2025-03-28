@@ -557,31 +557,37 @@ class CCAMSstats {
 
 	function createStats() {
 		$facilities = array('DEL', 'GND', 'TWR', 'APP', 'DEP', 'CTR', 'FSS');
-		$stats['facility'] = array_combine($facilities, array_fill(0, count($facilities), 0));
-		$stats['hour'] = array_fill(0,24,0);
-		foreach ($this->logdata as $log) {
-			if ($log[7]=='code assigned') {
-
+		for ($i = 0; $i < 2; $i++) {
+			$stats['facility'] = array_combine($facilities, array_fill(0, count($facilities), 0));
+			$stats['hour'] = array_fill(0,24,0);
+			foreach ($this->logdata as $log) {
+				$date = new DateTimeImmutable($log[0]);
+				if ($i == ($log[7] == 'code assigned')) continue;
+				// if ($log[7]=='code assigned') {
+				// 	$answer = 1;
+				// } else {
+				// 	$answer = 0;
+				// }
+				//echo var_dump($date->format('Y-m-d'));
+				$stats['date'][$date->format('Y-m-d')] += 1;
+				$stats['year'][$date->format('Y')] += 1;
+				$stats['month'][$date->format('n')] += 1;
+				$stats['week'][$date->format('W')] += 1;
+				$stats['day'][$date->format('j')] += 1;
+				//echo var_dump($stats);
+				$stats['hour'][$date->format('G')] += 1;
+				$stats['callsign'][$log[5]] += 1;
+				if (preg_match('/^([A-Z]+)_/',$log[5],$m)) $stats['designator'][$m[1]] += 1;
+				if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$log[5],$m)) $stats['facility'][$m[1]] += 1;
+				if (preg_match('/plug-in: (CCAMS)\/([\d\w\.]+)/',$log[2],$m)) $stats['client'][$m[1].' '.$m[2]] += 1;
+				if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
+				if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
 			}
-			$date = new DateTimeImmutable($log[0]);
-			//echo var_dump($date->format('Y-m-d'));
-			$stats['date'][$date->format('Y-m-d')] += 1;
-			$stats['year'][$date->format('Y')] += 1;
-			$stats['month'][$date->format('n')] += 1;
-			$stats['week'][$date->format('W')] += 1;
-			$stats['day'][$date->format('j')] += 1;
-			//echo var_dump($stats);
-			$stats['hour'][$date->format('G')] += 1;
-			$stats['callsign'][$log[5]] += 1;
-			if (preg_match('/^([A-Z]+)_/',$log[5],$m)) $stats['designator'][$m[1]] += 1;
-			if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$log[5],$m)) $stats['facility'][$m[1]] += 1;
-			if (preg_match('/plug-in: (CCAMS)\/([\d\w\.]+)/',$log[2],$m)) $stats['client'][$m[1].' '.$m[2]] += 1;
-			if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
-			if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
+			ksort($stats['designator']);
+			if (array_key_exists('client', $stats)) ksort($stats['client']);
+			$statslib[] = $stats;
 		}
-		ksort($stats['designator']);
-		if (array_key_exists('client', $stats)) ksort($stats['client']);
-		return json_encode($stats);
+		return json_encode($statslib);
 
 		//echo var_dump($stats);
 	}
