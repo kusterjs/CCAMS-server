@@ -5,6 +5,7 @@
 <title>CCAMS statistics</title>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
 <!--<link rel="stylesheet" href="style.css">-->
 </head>
 <body>
@@ -15,12 +16,16 @@
 
 	<table>
 		<tr>
-			<td><div style="width: 800px"><canvas id="designatorChart"></canvas></div></td>
-			<td><div style="width: 400px"><canvas id="facilityChart"></canvas></div></td>
-		</tr>
-		<tr>
-			<td><div style="width: 800px"><canvas id="timeChart"></canvas></div></td>
-			<td><div style="width: 400px"><canvas id="clientChart"></canvas></div></td>
+			<td><div style="width: 800px; height: 800px;"><canvas id="designatorChart"></canvas></div></td>
+			<td><table>
+				<tr>
+					<td colspan="2"><div style="width: 800px"><canvas id="timeChart"></canvas></div></td>
+				</tr>
+				<tr>
+					<td><div style="width: 400px"><canvas id="facilityChart"></canvas></div></td>
+					<td><div style="width: 400px"><canvas id="clientChart"></canvas></div></td>
+				</tr>
+			</table></td>
 		</tr>
 		<tr>
 			<td><div style="width: 800px"><canvas id="weekRequestChart"></canvas></div></td>
@@ -37,15 +42,53 @@
 </body>
 </html>
 <script>
+	Chart.register(ChartDataLabels);
+
 	var designatorChart = new Chart($('#designatorChart'), {
 		type: 'bar',
-		data: {},
+		data: {
+			datasets: [
+				{
+					label: 'Refused',
+					backgroundColor: ['rgba(128,64,64,0.8)']
+				},
+				{
+					label: 'Accepted',
+					backgroundColor: ['rgba(64,128,64,0.8)']
+				}
+			]
+		},
 		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Designators'
+				},
+				legend: false,
+				datalabels: false,
+				tooltip: {
+					callbacks: {
+						label: function(context) {
+							const label = context.dataset.label || '';
+							const value = Math.abs(context.parsed.x); // 'x' for horizontal bars; use 'y' for vertical
+							return `${label}: ${value}`;
+						}
+					}
+				}
+			},
 			responsive: true,
+			maintainAspectRatio: false,
 			indexAxis: 'y',
 			scales: {
-				y: {
+				x: {
+					stacked: true,
 					beginAtZero: true
+				},
+				y: {
+					stacked: true,
+					ticks: {
+						autoSkip: false
+					}
 				}
 			}
 		}
@@ -64,60 +107,181 @@
 	});	
 	var facilityChart = new Chart($('#facilityChart'), {
 		type: 'doughnut',
-		data: {}/*,
+		data: {},
 		options: {
-			responsive: true,
-			scales: {
-				y: {
-					beginAtZero: true
-				}
+			plugins: {
+				title: {
+					display: true,
+					text: 'Facilities'
+				},
+				datalabels: false
 			}
-		}*/
+		}
 	});	
 	var timeChart = new Chart($('#timeChart'), {
 		type: 'bar',
-		data: {},
+		data: {
+			datasets: [
+				{
+					label: 'Refused',
+					backgroundColor: ['rgba(128,64,64,0.8)']
+				},
+				{
+					label: 'Accepted',
+					backgroundColor: ['rgba(64,128,64,0.8)']
+				}
+			]
+		},
 		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Time (hour UTC)'
+				},
+				legend: false,
+				datalabels: false,
+				tooltip: {
+					callbacks: {
+						title: function(context) {
+							return `Hour ${context[0].label}`;
+						},
+						label: function(context) {
+							const label = context.dataset.label || '';
+							const value = Math.abs(context.parsed.y); // 'x' for horizontal bars; use 'y' for vertical
+							return `${label}: ${value}`;
+						}
+					}
+				}
+			},
 			responsive: true,
 			scales: {
+				x: {
+					stacked: true,
+					beginAtZero: true,
+					ticks: {
+						autoSkip: false
+					}
+				},
 				y: {
-					beginAtZero: true
+					stacked: true
 				}
 			}
 		}
 	});	
 	var clientChart = new Chart($('#clientChart'), {
 		type: 'doughnut',
-		data: {}/*,
+		data: {},
 		options: {
-			responsive: true,
-			scales: {
-				y: {
-					beginAtZero: true
+			plugins: {
+				title: {
+					display: true,
+					text: 'Clients'
+				},
+				datalabels: {
+					display: false,
+					color: 'black',
+					anchor: 'center',
+					align: 'center',
+					formatter: function(value, context) {
+						// context.chart.data.labels contains all labels
+						const label = context.chart.data.labels[context.dataIndex];
+						return `${label}: ${value}`;
+					}
 				}
 			}
-		}*/
+		},
+		plugins: [ChartDataLabels]
 	});	
 	var weekRequestChart = new Chart($('#weekRequestChart'), {
 		type: 'bar',
-		data: {},
+		data: {
+			datasets: [
+				{
+					label: 'Refused',
+					backgroundColor: ['rgba(128,64,64,0.8)']
+				},
+				{
+					label: 'Accepted',
+					backgroundColor: ['rgba(64,128,64,0.8)']
+				}
+			]
+		},
 		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Current week (per day)'
+				},
+				legend: false,
+				datalabels: false,
+				tooltip: {
+					callbacks: {
+						label: function(context) {
+							const label = context.dataset.label || '';
+							const value = Math.abs(context.parsed.y); // 'x' for horizontal bars; use 'y' for vertical
+							return `${label}: ${value}`;
+						}
+					}
+				}
+			},
 			responsive: true,
 			scales: {
+				x: {
+					stacked: true,
+					beginAtZero: true,
+					ticks: {
+						autoSkip: false
+					}
+				},
 				y: {
-					beginAtZero: true
+					stacked: true
 				}
 			}
 		}
 	});	
 	var monthRequestChart = new Chart($('#monthRequestChart'), {
 		type: 'bar',
-		data: {},
+		data: {
+			datasets: [
+				{
+					label: 'Refused',
+					backgroundColor: ['rgba(128,64,64,0.8)']
+				},
+				{
+					label: 'Accepted',
+					backgroundColor: ['rgba(64,128,64,0.8)']
+				}
+			]
+		},
 		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Current month (per day)'
+				},
+				legend: false,
+				datalabels: false,
+				tooltip: {
+					callbacks: {
+						label: function(context) {
+							const label = context.dataset.label || '';
+							const value = Math.abs(context.parsed.y); // 'x' for horizontal bars; use 'y' for vertical
+							return `${label}: ${value}`;
+						}
+					}
+				}
+			},
 			responsive: true,
 			scales: {
+				x: {
+					stacked: true,
+					beginAtZero: true,
+					ticks: {
+						autoSkip: false
+					}
+				},
 				y: {
-					beginAtZero: true
+					stacked: true
 				}
 			}
 		}
@@ -139,32 +303,36 @@
 		var post = $.post("json?r=stats-daily", data);
 		
 		post.done( function(data) {
-			designatorChart.data.datasets.pop();
+			// designatorChart.data.datasets.pop();
 			csChart.data.datasets.pop();
 			facilityChart.data.datasets.pop();
-			timeChart.data.datasets.pop();
+			// timeChart.data.datasets.pop();
 			clientChart.data.datasets.pop();
 			try {
 				var resp = JSON.parse(data);
 				
-				designatorChart.data.labels = Object.keys(resp[1].designator);
-				designatorChart.data.datasets.push({label: 'Designator', data: Object.values(resp[1].designator), backgroundColor: ['rgba(32,32,32,0.8)']});
+				designatorChart.data.labels = Object.keys(resp[0].designator);
+				designatorChart.data.datasets[0].data = Object.values(resp[1].designator).map(n => n * -1);
+				designatorChart.data.datasets[1].data = Object.values(resp[2].designator);
+				// designatorChart.data.datasets.forEach(dataset => {dataset.data = }
+					// {label: 'Designator', data: Object.values(resp[1].designator), backgroundColor: ['rgba(32,32,32,0.8)']});
 				designatorChart.update();
 				
 /*				csChart.data.labels = Object.keys(resp[1].callsign);
 				csChart.data.datasets.push({label: 'Call Signs', data: Object.values(resp[1].callsign)});
 				csChart.update();
 */				
-				facilityChart.data.labels = Object.keys(resp[1].facility);
-				facilityChart.data.datasets.push({label: 'Facilities', data: Object.values(resp[1].facility)});
+				facilityChart.data.labels = Object.keys(resp[0].facility);
+				facilityChart.data.datasets.push({data: Object.values(resp[2].facility)});
 				facilityChart.update();
 
-				timeChart.data.labels = Object.keys(resp[1].hour);
-				timeChart.data.datasets.push({label: 'Hour (UTC)', data: Object.values(resp[1].hour), backgroundColor: ['rgba(32,32,32,0.8)']});
+				timeChart.data.labels = Object.keys(resp[0].hour);
+				timeChart.data.datasets[0].data = Object.values(resp[1].hour).map(n => n * -1);
+				timeChart.data.datasets[1].data = Object.values(resp[2].hour);
 				timeChart.update();
 
-				clientChart.data.labels = Object.keys(resp[1].client);
-				clientChart.data.datasets.push({label: 'Client', data: Object.values(resp[1].client)});
+				clientChart.data.labels = Object.keys(resp[0].client);
+				clientChart.data.datasets.push({data: Object.values(resp[2].client)});
 				clientChart.update();
 
 			} catch (e) {
@@ -175,12 +343,13 @@
 		post = $.post("json?r=stats-weekly", date);
 		
 		post.done( function(data) {
-			weekRequestChart.data.datasets.pop();
+			// weekRequestChart.data.datasets.pop();
 			try {
 				var resp = JSON.parse(data);
 				
-				weekRequestChart.data.labels = Object.keys(resp[1].date);
-				weekRequestChart.data.datasets.push({label: 'Daily Requests (week)', data: Object.values(resp[1].date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				weekRequestChart.data.labels = Object.keys(resp[0].date);
+				weekRequestChart.data.datasets[0].data = Object.values(resp[1].date).map(n => n * -1);
+				weekRequestChart.data.datasets[1].data = Object.values(resp[2].date);
 				weekRequestChart.update();
 
 			} catch (e) {
@@ -191,12 +360,13 @@
 		post = $.post("json?r=stats-monthly", date);
 		
 		post.done( function(data) {
-			monthRequestChart.data.datasets.pop();
+			// monthRequestChart.data.datasets.pop();
 			try {
 				var resp = JSON.parse(data);
 				
-				monthRequestChart.data.labels = Object.keys(resp[1].date);
-				monthRequestChart.data.datasets.push({label: 'Daily Requests (month)', data: Object.values(resp[1].date), backgroundColor: ['rgba(128,32,32,0.8)']});
+				monthRequestChart.data.labels = Object.keys(resp[0].date);
+				monthRequestChart.data.datasets[0].data = Object.values(resp[1].date).map(n => n * -1);
+				monthRequestChart.data.datasets[1].data = Object.values(resp[2].date);
 				monthRequestChart.update();
 
 			} catch (e) {

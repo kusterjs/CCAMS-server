@@ -556,18 +556,19 @@ class CCAMSstats {
 	}
 
 	function createStats() {
-		$facilities = array('DEL', 'GND', 'TWR', 'APP', 'DEP', 'CTR', 'FSS');
-		for ($i = 0; $i < 2; $i++) {
-			$stats['facility'] = array_combine($facilities, array_fill(0, count($facilities), 0));
+		for ($i = 0; $i < 3; $i++) {
+			$stats = [];
 			$stats['hour'] = array_fill(0,24,0);
+			$stats['facility'] = array_fill_keys(['DEL', 'GND', 'TWR', 'APP', 'DEP', 'CTR', 'FSS'], 0);
+			$stats['flightrule'] = ['I', 'V'];
+			if ($i > 0 ) {
+				foreach (['date', 'year', 'month', 'week', 'day', 'callsign', 'designator', 'client', 'origin'] as $key) {
+					$stats[$key] = array_fill_keys(array_keys($statslib[0][$key]), 0);
+				}
+			}
 			foreach ($this->logdata as $log) {
 				$date = new DateTimeImmutable($log[0]);
-				if ($i == ($log[7] == 'code assigned')) continue;
-				// if ($log[7]=='code assigned') {
-				// 	$answer = 1;
-				// } else {
-				// 	$answer = 0;
-				// }
+				if ($i > 0 && $i-1 != ($log[7] == 'code assigned')) continue;
 				//echo var_dump($date->format('Y-m-d'));
 				$stats['date'][$date->format('Y-m-d')] += 1;
 				$stats['year'][$date->format('Y')] += 1;
@@ -584,7 +585,7 @@ class CCAMSstats {
 				if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
 			}
 			ksort($stats['designator']);
-			if (array_key_exists('client', $stats)) ksort($stats['client']);
+			if (array_key_exists('client', $stats)) krsort($stats['client']);
 			$statslib[] = $stats;
 		}
 		return json_encode($statslib);
