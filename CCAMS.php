@@ -256,10 +256,7 @@ class CCAMS {
 
 		// exclude all codes already known to be assigned by the controller asking for a code
 		if (array_key_exists('codes',$_GET)) {
-			foreach (explode(',',urldecode(filter_input(INPUT_GET,'codes'))) as $code) {
-				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
-			}
-			foreach (explode('~',urldecode(filter_input(INPUT_GET,'codes'))) as $code) {
+			foreach (preg_split('/[,~]+/', urldecode(filter_input(INPUT_GET,'codes')), -1, PREG_SPLIT_NO_EMPTY) as $code) {
 				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
 			}
 		}
