@@ -121,7 +121,7 @@ class CCAMS {
 	private function check_user_request() {
 		if (!$this->users = $this->read_bin_file('users.bin')) {
 			// create an empty array if the bin file couldn't been read
-			$this->users = array();
+			$this->users = [];
 		}
 
 		// create compare hash
@@ -233,8 +233,8 @@ class CCAMS {
 	}
 
 	private function codes_used() {
-		$codes = array();
-		$this->usedcodes = array();
+		$codes = [];
+		$this->usedcodes = [];
 		// check squawks used according vatsim-data file and exclude these codes from possible results
 		if ($this->networkmode) {
 			$vatsim = new VATSIM($this->is_debug);
@@ -245,7 +245,7 @@ class CCAMS {
 			}
 
 			// collect already reserved codes
-			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = array();
+			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = [];
 			$this->usedcodes = $this->check_reserved_codes();
 
 			// exclude all cached codes from possible results
@@ -273,7 +273,7 @@ class CCAMS {
 			}
 			return $codes;
 		}
-		return array();
+		return [];
 	}
 
 	function clean_squawk_cache() {
@@ -317,7 +317,7 @@ class CCAMS {
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 
 		// collect conditions
-		$conditions = array();
+		$conditions = [];
 		if (array_key_exists('flightrule',$_GET)) if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
 		if (array_key_exists('flightrules',$_GET)) if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
 		if ($dest = array_key_exists('dest',$_GET)) {
@@ -332,14 +332,14 @@ class CCAMS {
 		}
 
 		// collecting search key words for the search in the APT table
-		$search = array();
+		$search = [];
 		if ($orig) $search[] = $orig;
 		$search[] = $callsign[1];
 		if ($vatspy && strlen($callsign[1]) == 3) if ($iata = array_search($callsign[1],$vatspy['IATA'])) $search[] = $vatspy['ICAO'][$iata];
 		$searches['APT'] = array_unique($search);
 
 		// collecting search key words for the search in the FIR table
-		$search = array();
+		$search = [];
 		if ($vatspy && $orig) if ($icao = array_search($orig,$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
 		if (isset($callsign[2])) $search[] = $callsign[1].$callsign[2];
 		$search[] = $callsign[1];
@@ -408,6 +408,36 @@ class CCAMS {
 		return false;
 	}
 
+	private function pointInPolygon($point, $vertices) {
+        // Check if the point is inside the polygon or on the boundary
+        $intersections = 0; 
+        $vertices_count = count($vertices);
+
+        for ($i=1; $i < $vertices_count; $i++) {
+            $vertex1 = $vertices[$i-1]; 
+            $vertex2 = $vertices[$i];
+            // if ($vertex1[1] == $vertex2[1] and $vertex1[1] == $point[1] and $point[0] > min($vertex1[0], $vertex2[0]) and $point[0] < max($vertex1[0], $vertex2[0])) { // Check if point is on an horizontal polygon boundary
+            //     return -1;
+            // }
+            if ($point[1] > min($vertex1[1], $vertex2[1]) and $point[1] <= max($vertex1[1], $vertex2[1]) and $point[0] <= max($vertex1[0], $vertex2[0]) and $vertex1[1] != $vertex2[1]) { 
+                $xinters = ($point[1] - $vertex1[1]) * ($vertex2[0] - $vertex1[0]) / ($vertex2[1] - $vertex1[1]) + $vertex1[0]; 
+                // if ($xinters == $point[0]) { // Check if point is on the polygon boundary (other than horizontal)
+                //     return -1;
+                // }
+                if ($vertex1[0] == $vertex2[0] || $point[0] <= $xinters) {
+                    $intersections++; 
+                }
+            } 
+        } 
+        // If the number of edges we passed through is odd, then it's in the polygon. 
+		return $intersections % 2;
+        // if ($intersections % 2 != 0) {
+        //     return 1;
+        // } else {
+        //     return -1;
+        // }
+    }
+
 	// generic functions to read and write files
 	function read_bin_file($file, $key = '') {
 		if (file_exists($this->root.$this->f_bin.$file)) {
@@ -429,7 +459,7 @@ class CCAMS {
 			$d[$key] = $data;
 			if (file_put_contents($this->root.$this->f_bin.$file, serialize($d))) return true;
 		} else {
-			if (file_put_contents($this->root.$this->f_bin.$file, serialize(array()))) return true;
+			if (file_put_contents($this->root.$this->f_bin.$file, serialize([]))) return true;
 		}
 		$this->write_log("file writing error;bin file ".$key);
 		return false;
@@ -441,18 +471,22 @@ class CCAMS {
 
 	function collect_sqwk_range_data() {
 		$rfiles = scandir($this->root.$this->f_config);
+		$sqwk_ranges = [];
 		foreach ($rfiles as $rfile) {
 			$path_parts = pathinfo($rfile);
 			if ($path_parts['extension'] == 'dat') {
 				$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
+			} else if ($path_parts['extension'] == 'geojson') {
+				$sqwk_ranges = array_merge($sqwk_ranges, $this->get_sqwk_areas($this->root.$this->f_config.$rfile));
 			}
 		}
+		$this->write_bin_file('ranges.bin',$sqwk_ranges,'AREA');
 	}
 
 	// the following functions are used for the website-based interactions (change and display codes)
 	function set_sqwk_range($key,$text) {
 		if ($text=='') {
-			$codes = array();
+			$codes = [];
 		} else {
 			if (!preg_match_all('/([A-Z0-9_]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
 
@@ -467,8 +501,88 @@ class CCAMS {
 		$this->write_bin_file('ranges.bin',$codes,$key);
 	}
 
+	function get_sqwk_areas($file) {
+		$path_parts = pathinfo($file);
+		$json = json_decode(file_get_contents($file), true);
+		if (!$json) {
+			$this->write_log("file reading error;config file ".$path_parts['filename'].".".$path_parts['extension']);
+			return [];
+		}
+
+		foreach (['type', 'crs', 'features'] as $attr) {
+			if (!isset($json[$attr])) {
+				$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr'");
+				return [];
+			}
+		}
+		if ($json['type']!='FeatureCollection') {
+			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected type");
+			return [];
+		}
+		else if (!isset($json['crs']['properties']['name'])) {
+			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute 'name' for its crs");
+			return [];
+		}
+		else if ($json['crs']['properties']['name']!='urn:ogc:def:crs:OGC:1.3:CRS84') {
+			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does contains an unknown crs");
+			return [];
+		}
+
+		foreach ($json['features'] as $feature) {
+			foreach (['type', 'properties', 'geometry'] as $attr) {
+				if (!isset($feature[$attr])) {
+					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its feature");
+					return [];
+				}
+			}
+			foreach (['name', 'squawk_code'] as $attr) {
+				if (!isset($feature['properties'][$attr])) {
+					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its feature properties");
+					return [];
+				}
+			}
+			$name = $feature['properties']['name'];
+			// echo "\n\n".$feature['properties']['name'];
+			// echo "\n".$feature['properties']['squawk_code'];
+			foreach (['type', 'coordinates'] as $attr) {
+				if (!isset($feature['geometry'][$attr])) {
+					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its geometry feature");
+					return [];
+				}
+			}
+			
+			$geometry = $feature['geometry']['coordinates'];
+			if (!str_contains($feature['geometry']['type'], 'Multi')) {
+				$geometry = [$geometry];
+			}
+
+			foreach ($geometry as $geometry_key => $polygon) {
+				// echo "\nPolygon no. ".$geometry_key;
+				foreach (explode(',',$feature['properties']['atc_callsign_match']) as $callsign) {
+					foreach ($polygon as $coordinates) {
+						$condition = (empty($feature['properties']['condition'])) ? 'zzzz' : strtolower($feature['properties']['condition']);
+						$code_areas[strtolower($callsign)][$condition][] = array('code' => $feature['properties']['squawk_code'], 'coordinates' => $coordinates);
+						// $code_areas[$callsign][$condition]['code'] = $feature['properties']['squawk_code'];
+						// $code_areas[$callsign][$condition]['callsign'] = ((empty($feature['properties']['atc_callsign_match'])) ? '' : $feature['properties']['atc_callsign_match']);
+						// $code_areas[$callsign][$condition]['coordinates'][] = $coordinates;
+						foreach ($coordinates as $coordinate) {
+							// echo var_dump($coordinate);
+							// echo "\n".$coordinate[1].", ".$coordinate[0];
+						}
+					}
+				}
+			}
+		}
+		echo var_dump($code_areas);
+		return $code_areas;
+	}
+
+	function set_sqwk_area($json) {
+
+	}
+
 	function get_sqwk_ranges() {
-		$json = array();
+		$json = [];
 		if ($codes = $this->read_bin_file('ranges.bin')) {
 			foreach ($codes as $table => $category) {
 				$txt = '';
@@ -487,7 +601,7 @@ class CCAMS {
 	}
 
 	function get_reserved_codes() {
-		$json = array();
+		$json = [];
 		if ($codes = $this->read_bin_file('squawks.bin')) {
 			ksort($codes);
 			$txt = '';
@@ -533,7 +647,7 @@ class CCAMSstats {
 		date_default_timezone_set("UTC");
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
-		$this->logdata = array();
+		$this->logdata = [];
 
 		if ($debug) {
 			$this->is_debug = true;
