@@ -310,50 +310,53 @@ class CCAMS {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_bin_file('vatspy.bin');
-		if (!preg_match('/^([a-z\-]+)(_[a-z0-9]+)?_+[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
+		if (!preg_match('/^(([a-z\-]+)(_[a-z0-9]+)?)_+[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
 
 		// collect conditions
 		$conditions = [];
 		if (array_key_exists('flightrule',$_GET)) if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
 		if (array_key_exists('flightrules',$_GET)) if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
-		if ($dest = array_key_exists('dest',$_GET)) {
-			$dest = strtolower(filter_input(INPUT_GET,'dest'));
-			for ($len=strlen($dest);$len>1;$len--) {
-				$conditions[] = substr($dest,0,$len);
+		if (empty($conditions)) {
+			if ($dest = array_key_exists('dest',$_GET)) {
+				$dest = strtolower(filter_input(INPUT_GET,'dest'));
+				for ($len=strlen($dest);$len>1;$len--) {
+					$conditions[] = substr($dest,0,$len);
+				}
+				if ($vatspy) {
+					if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
+					if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
+				}
 			}
-			if ($vatspy) {
-				if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
-				if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
-			}
+			$conditions[] = 'zzzz';
 		}
 
 		// collecting search key words for the search in the APT table
 		$search = [];
 		if ($orig) $search[] = $orig;
-		$search[] = $callsign[1];
-		if ($vatspy && strlen($callsign[1]) == 3) if ($iata = array_search($callsign[1],$vatspy['IATA'])) $search[] = $vatspy['ICAO'][$iata];
+		$search[] = $callsign[2];
+		if ($vatspy && strlen($callsign[2]) == 3) if ($iata = array_search($callsign[2],$vatspy['IATA'])) $search[] = $vatspy['ICAO'][$iata];
 		$searches['APT'] = array_unique($search);
 
 		// collecting search key words for the search in the FIR table
 		$search = [];
 		if ($vatspy && $orig) if ($icao = array_search($orig,$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
-		if (isset($callsign[2])) $search[] = $callsign[1].$callsign[2];
 		$search[] = $callsign[1];
+		$search[] = $callsign[2];
 		if ($vatspy) {
-			if ($iata = array_search($callsign[1],$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
-			if ($icao = array_search($callsign[1],$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
+			if ($iata = array_search($callsign[2],$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
+			if ($icao = array_search($callsign[2],$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
 		}
-		for ($len = strlen($callsign[1]); $len>1; $len--) $search[] = substr($callsign[1],0,$len);
+		for ($len = strlen($callsign[2]); $len>1; $len--) $search[] = substr($callsign[2],0,$len);
 		$searches['FIR'] = array_unique($search);
 
-		if ($code = $this->get_range_code($callsign, $searches,$conditions)) return $code;
+		if ($code = $this->get_range_code($callsign, $searches, $conditions)) return $code;
+		if ($code = $this->get_area_code($callsign, $conditions)) return $code;
 		return false;
 	}
 
 	private function get_range_code($callsign, array $searches, array $conditions) {
 		// completition of the $conditions array
-		$conditions[] = 'zzzz';
 		$conditions = array_unique($conditions);
 
 		/*
@@ -369,15 +372,14 @@ class CCAMS {
 			foreach ($search as $needle) {
 				foreach ($conditions as $condition) {
 					if ($this->is_debug) echo 'Scanning range in '.$tablekey.' table for match with '.strtoupper($needle).', condition is '.strtoupper($condition).'<br>';
-					if (array_key_exists($needle,$this->squawkranges[$tablekey]) && strlen($callsign[1]) <= strlen($needle)) {
+					if (array_key_exists($needle,$this->squawkranges[$tablekey]) && strlen($callsign[2]) <= strlen($needle)) {
 						// look first for an exact match
 						if ($codesearch = $this->search_code_range($tablekey, $needle, $condition)) return $codesearch;
 					} else {
 						// otherwise, try partial matches
 						foreach (array_keys($this->squawkranges[$tablekey]) as $rangename) {
 							// echo substr($rangename,0,strlen($needle)).' =? '.$needle.'<br>';
-							if (strcmp(substr($rangename,0,strlen($needle)),$needle) == 0 && strlen($callsign[1]) <= strlen($rangename)) {
-								//  && strlen($needle) < strlen($callsign[1]) 
+							if (strcmp(substr($rangename,0,strlen($needle)),$needle) == 0 && strlen($callsign[2]) <= strlen($rangename)) {
 								if ($codesearch = $this->search_code_range($tablekey, $rangename, $condition)) return $codesearch;
 							}
 						}
@@ -385,6 +387,34 @@ class CCAMS {
 				}
 			}
 		}
+		return false;
+	}
+
+	private function get_area_code($callsign, array $conditions) {
+		if (isset($conditions[0]) && $conditions[0] == 'vfr' && array_key_exists('latitude',$_GET) && array_key_exists('longitude',$_GET) && array_key_exists('AREA',$this->squawkranges)) {
+			$conditions = [$conditions[0]];
+			$position = [filter_input(INPUT_GET,'longitude'), filter_input(INPUT_GET,'latitude')];
+			// echo $callsign[0].'<br>';
+
+			foreach ($this->squawkranges['AREA'] as $callsign_match => $area) {
+				if (str_starts_with($callsign[1], $callsign_match)) {
+					foreach ($area as $condition => $polygons) {
+						if ($this->is_debug) echo "Scanning area '$callsign_match' for match with '$callsign[0]', condition is '$condition'<br>";
+						if (in_array($condition, $conditions)) {
+							foreach ($polygons as $polygon_key => $polygon) {
+								if ($this->pointInPolygon($position, $polygon['coordinates'])) {
+									if ($this->is_debug) echo "Position ".implode(',', $position)." is within polygon $polygon_key<br>";
+									return $polygon['code'];
+								}
+							}
+						}
+					}
+				}
+			}
+
+
+		}
+
 		return false;
 	}
 
@@ -431,7 +461,7 @@ class CCAMS {
         // if ($intersections % 2 != 0) {
         //     return 1;
         // } else {
-        //     return -1;
+        //     return 0;
         // }
     }
 
@@ -558,7 +588,7 @@ class CCAMS {
 				foreach (explode(',',$feature['properties']['atc_callsign_match']) as $callsign) {
 					foreach ($polygon as $coordinates) {
 						$condition = (empty($feature['properties']['condition'])) ? 'zzzz' : strtolower($feature['properties']['condition']);
-						$code_areas[strtolower($callsign)][$condition][] = array('code' => $feature['properties']['squawk_code'], 'coordinates' => $coordinates);
+						$code_areas[strtolower($callsign)][$condition][] = array('code' => octdec($feature['properties']['squawk_code']), 'coordinates' => $coordinates);
 						// $code_areas[$callsign][$condition]['code'] = $feature['properties']['squawk_code'];
 						// $code_areas[$callsign][$condition]['callsign'] = ((empty($feature['properties']['atc_callsign_match'])) ? '' : $feature['properties']['atc_callsign_match']);
 						// $code_areas[$callsign][$condition]['coordinates'][] = $coordinates;
