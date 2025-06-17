@@ -15,6 +15,8 @@ class CCAMS {
 	private $file_log;
 	public $logfile_prefix;
 	private $logtext_prefix;
+	private $file_lock;
+	public $lock;
 
 	private $users;
 	private $usedcodes;	// the codes reserved by the api
@@ -235,7 +237,7 @@ class CCAMS {
 
 			if ($this->networkmode) {
 				// reserve code
-				$this->reserve_code($resp,2*3600);
+				$this->reserve_code($resp,2*3600);	// consider permanently reserving area squawks
 
 				// write cache files
 				$this->write_bin_file('squawks.bin',$this->usedcodes);
