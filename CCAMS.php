@@ -47,9 +47,19 @@ class CCAMS {
 			$this->is_debug = false;
 			error_reporting(0);
 		}
+
+		$this->file_lock = '/request.lock';
+		$this->lock = fopen($this->root.$this->file_lock, 'c'); // 'c' means create if not exists
+
+		if (!$this->lock) {
+			http_response_code(500);
+			$this->write_log("file reading error;lock file '$this->file_lock'");
+			exit;
+		}		
 	}
 
 	function __destruct() {
+		flock($this->lock, LOCK_UN);
 		//if ($this->is_debug) echo 'End of CCAMS class<br>';
 	}
 
@@ -65,7 +75,12 @@ class CCAMS {
 			echo '0000';
 			return;
 		}
-		if (!$this->check_user_request()) return http_response_code(429);
+
+		if (flock($this->lock, LOCK_EX)) {
+			$req = $this->check_user_request();
+			flock($this->lock, LOCK_UN);
+			if (!$req) return http_response_code(429);
+		}
 
 		$this->is_valid = true;
 	}
@@ -168,7 +183,7 @@ class CCAMS {
 
 	function request_code() {
 		if (!$this->is_valid) return;
-		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
 
 		// generate an array with all possible squawk codes
 		$squawk = array_fill(0,4095,'');
@@ -179,50 +194,53 @@ class CCAMS {
 		}
 
 		// removed codes already in use
-		foreach ($this->codes_used() as $code) unset($squawk[$code]);
+		if (!$this->networkmode || flock($this->lock, LOCK_EX)) {
+			foreach ($this->codes_used() as $code) unset($squawk[$code]);
 
-		$this->squawk = $squawk;
-		// the squawk variable contains now only the codes that can be assigned
-
-		//echo var_dump($squawk);
-		$this->squawkranges = $this->read_bin_file('ranges.bin');
-		if (!($ssr = $this->squawk_from_range())) {
-			// if there is no key found, start preparing $squawk for assigning a random code
-			// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
-			foreach ($squawk as $code => $code) {
-				if ($code<64) unset($squawk[$code]);
-			}
 			$this->squawk = $squawk;
-			// revised table of assignable codes
+			// the squawk variable contains now only the codes that can be assigned
 
-			// removing all known FIR ranges from it
-			if (array_key_exists('FIR',$this->squawkranges)) {
-				foreach ($this->squawkranges['FIR'] as $rangename) {
-					foreach ($rangename as $rangecondition) {
-						foreach ($rangecondition as $range) {
-							for ($code = $range[0];$code<=$range[1];$code++) {
-								unset($squawk[$code]);
+			//echo var_dump($squawk);
+			$this->squawkranges = $this->read_bin_file('ranges.bin');
+			if (!($ssr = $this->squawk_from_rules())) {
+				// if there is no key found, start preparing $squawk for assigning a random code
+				// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
+				foreach ($squawk as $code => $code) {
+					if ($code<64) unset($squawk[$code]);
+				}
+				$this->squawk = $squawk;
+				// revised table of assignable codes
+
+				// removing all known FIR ranges from it
+				if (array_key_exists('FIR',$this->squawkranges)) {
+					foreach ($this->squawkranges['FIR'] as $rangename) {
+						foreach ($rangename as $rangecondition) {
+							foreach ($rangecondition as $range) {
+								for ($code = $range[0];$code<=$range[1];$code++) {
+									unset($squawk[$code]);
+								}
 							}
 						}
 					}
 				}
+
+				if (count($squawk) == 0) {
+					// if no codes are left, select a random code but disregarding all known FIR ranges
+					$squawk = $this->squawk;
+				}
+				if ($this->is_debug) echo 'selecting a random squawk<br>';
+				$ssr = array_rand($squawk);
 			}
+			$resp = sprintf("%04o",$ssr);
 
-			if (count($squawk) == 0) {
-				// if no codes are left, select a random code but disregarding all known FIR ranges
-				$squawk = $this->squawk;
+			if ($this->networkmode) {
+				// reserve code
+				$this->reserve_code($resp,2*3600);
+
+				// write cache files
+				$this->write_bin_file('squawks.bin',$this->usedcodes);
 			}
-			if ($this->is_debug) echo 'selecting a random squawk<br>';
-			$ssr = array_rand($squawk);
-		}
-		$resp = sprintf("%04o",$ssr);
-
-		if ($this->networkmode) {
-			// reserve code
-			$this->reserve_code($resp,2*3600);
-
-			// write cache files
-			$this->write_bin_file('squawks.bin',$this->usedcodes);
+			flock($this->lock, LOCK_UN);
 		}
 
 		// create output
@@ -241,7 +259,7 @@ class CCAMS {
 			$vdata = $vatsim->get_vdata();
 			foreach ($vdata['pilots'] as $pilot) {
 				if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
-				if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
+				if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
 			}
 
 			// collect already reserved codes
@@ -306,7 +324,7 @@ class CCAMS {
 		return true;
 	}
 
-	private function squawk_from_range() {
+	private function squawk_from_rules() {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_bin_file('vatspy.bin');
@@ -315,9 +333,11 @@ class CCAMS {
 
 		// collect conditions
 		$conditions = [];
-		if (array_key_exists('flightrule',$_GET)) if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
-		if (array_key_exists('flightrules',$_GET)) if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
-		if (empty($conditions)) {
+		if (array_key_exists('flightrule',$_GET)) {
+			if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
+		} else if (array_key_exists('flightrules',$_GET)) {
+			if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
+		} else {
 			if ($dest = array_key_exists('dest',$_GET)) {
 				$dest = strtolower(filter_input(INPUT_GET,'dest'));
 				for ($len=strlen($dest);$len>1;$len--) {
@@ -328,8 +348,8 @@ class CCAMS {
 					if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
 				}
 			}
-			$conditions[] = 'zzzz';
 		}
+		$conditions[] = 'zzzz';
 
 		// collecting search key words for the search in the APT table
 		$search = [];
@@ -411,8 +431,6 @@ class CCAMS {
 					}
 				}
 			}
-
-
 		}
 
 		return false;
@@ -478,7 +496,7 @@ class CCAMS {
 	}
 
 	private function write_bin_file($file, $data, $key = '') {
-		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
 		if (empty($key)) {
 			//if ($this->is_debug) echo var_dump(serialize($data)).'<br>';
 			if (file_put_contents($this->root.$this->f_bin.$file, serialize($data))) return true;
@@ -493,7 +511,7 @@ class CCAMS {
 	}
 
 	private function write_log($text) {
-		file_put_contents(__DIR__.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
+		file_put_contents($this->root.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
 	}
 
 	function collect_sqwk_range_data() {
@@ -641,7 +659,7 @@ class CCAMS {
 
 	// used to get the date list for statistics
 	function get_logs() {
-		if (($logfiles = glob(__DIR__.$this->f_log.$this->logfile_prefix.'*'))!==false) {
+		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
 			rsort($logfiles);
 			foreach ($logfiles as $file) {
 				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
@@ -689,7 +707,7 @@ class CCAMSstats {
 
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
-		if (($logdata = file(__DIR__.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
+		if (($logdata = file($this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
 		foreach ($logdata as $line) {
 			$data = explode(";",$line);
 			if (count($data)==9) $this->logdata[] = $data;
