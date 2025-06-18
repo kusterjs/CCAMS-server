@@ -21,6 +21,7 @@ class CCAMS {
 	private $users;
 	private $usedcodes;	// the codes reserved by the api
 	private $squawkranges;
+	private $squawkgroups;
 
 	private $squawk;	// the codes available for use
 
@@ -121,7 +122,7 @@ class CCAMS {
 			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br>';
 		}
 
-		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[4-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
+		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		$this->write_log("user agent not authorised");
 		return false;
@@ -195,8 +196,24 @@ class CCAMS {
 			if ($code%64==0) unset($squawk[$code]);
 		}
 
+		// remove group codes
+		$this->squawkgroups = $this->read_bin_file('groups.bin');
+		foreach ($this->squawkgroups as $callsign_match => $group) {
+			foreach ($group as $group_code => $polygons) {
+				unset($squawk[$group_code]);
+			}
+		}
+
 		// removed codes already in use
 		if (!$this->networkmode || flock($this->lock, LOCK_EX)) {
+			if (array_key_exists('flightrule',$_GET)) {
+				$flightrule = filter_input(INPUT_GET,'flightrule');
+			} else if (array_key_exists('flightrules',$_GET)) {
+				$flightrule = filter_input(INPUT_GET,'flightrules');
+			} else {
+				$flightrule = 'I';
+			}
+
 			foreach ($this->codes_used() as $code) unset($squawk[$code]);
 
 			$this->squawk = $squawk;
@@ -204,11 +221,13 @@ class CCAMS {
 
 			//echo var_dump($squawk);
 			$this->squawkranges = $this->read_bin_file('ranges.bin');
-			if (!($ssr = $this->squawk_from_rules())) {
+			if (!($ssr = $this->squawk_from_rules($flightrule))) {
 				// if there is no key found, start preparing $squawk for assigning a random code
 				// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
-				foreach ($squawk as $code => $code) {
-					if ($code<64) unset($squawk[$code]);
+				if ($flightrule == 'I') {
+					foreach ($squawk as $code => $code) {
+						if ($code<64) unset($squawk[$code]);
+					}
 				}
 				$this->squawk = $squawk;
 				// revised table of assignable codes
@@ -237,7 +256,7 @@ class CCAMS {
 
 			if ($this->networkmode) {
 				// reserve code
-				$this->reserve_code($resp,2*3600);	// consider permanently reserving area squawks
+				$this->reserve_code($resp,2*3600);
 
 				// write cache files
 				$this->write_bin_file('squawks.bin',$this->usedcodes);
@@ -326,7 +345,7 @@ class CCAMS {
 		return true;
 	}
 
-	private function squawk_from_rules() {
+	private function squawk_from_rules($flightrule) {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_bin_file('vatspy.bin');
@@ -335,10 +354,8 @@ class CCAMS {
 
 		// collect conditions
 		$conditions = [];
-		if (array_key_exists('flightrule',$_GET)) {
-			if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
-		} else if (array_key_exists('flightrules',$_GET)) {
-			if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
+		if ($flightrule == 'V') {
+			$conditions[] = 'vfr';
 		} else {
 			if ($dest = array_key_exists('dest',$_GET)) {
 				$dest = strtolower(filter_input(INPUT_GET,'dest'));
@@ -350,8 +367,8 @@ class CCAMS {
 					if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
 				}
 			}
+			$conditions[] = 'zzzz';
 		}
-		$conditions[] = 'zzzz';
 
 		// collecting search key words for the search in the APT table
 		$search = [];
@@ -373,7 +390,7 @@ class CCAMS {
 		$searches['FIR'] = array_unique($search);
 
 		if ($code = $this->get_range_code($callsign, $searches, $conditions)) return $code;
-		if ($code = $this->get_area_code($callsign, $conditions)) return $code;
+		if ($flightrule == 'V' && $this->squawkgroups) if ($code = $this->get_group_code($callsign, $conditions)) return $code;
 		return false;
 	}
 
@@ -412,22 +429,22 @@ class CCAMS {
 		return false;
 	}
 
-	private function get_area_code($callsign, array $conditions) {
-		if (isset($conditions[0]) && $conditions[0] == 'vfr' && array_key_exists('latitude',$_GET) && array_key_exists('longitude',$_GET) && array_key_exists('AREA',$this->squawkranges)) {
-			$conditions = [$conditions[0]];
+	private function get_group_code($callsign, array $conditions) {
+		if (array_key_exists('latitude',$_GET) && array_key_exists('longitude',$_GET)) {
 			$position = [filter_input(INPUT_GET,'longitude'), filter_input(INPUT_GET,'latitude')];
 			// echo $callsign[0].'<br>';
 
-			foreach ($this->squawkranges['AREA'] as $callsign_match => $area) {
+			foreach ($this->squawkgroups as $callsign_match => $group) {
+				if ($this->is_debug) echo "Scanning area '".strtoupper($callsign_match)."' for match with '".strtoupper($callsign[0])."'<br>";
 				if (str_starts_with($callsign[1], $callsign_match)) {
-					foreach ($area as $condition => $polygons) {
-						if ($this->is_debug) echo "Scanning area '$callsign_match' for match with '$callsign[0]', condition is '$condition'<br>";
-						if (in_array($condition, $conditions)) {
-							foreach ($polygons as $polygon_key => $polygon) {
-								if ($this->pointInPolygon($position, $polygon['coordinates'])) {
-									if ($this->is_debug) echo "Position ".implode(',', $position)." is within polygon $polygon_key<br>";
-									return $polygon['code'];
-								}
+					foreach ($group as $group_code => $polygons) {
+						foreach ($polygons as $polygon_key => $polygon) {
+							if (empty($polygon)) {
+								if ($this->is_debug) echo "Group code without geographical restrictions found<br>";
+								return $group_code;
+							} else if ($this->pointInPolygon($position, $polygon)) {
+								if ($this->is_debug) echo "Position ".implode(',', $position)." is within polygon $polygon_key<br>";
+								return $group_code;
 							}
 						}
 					}
@@ -519,15 +536,18 @@ class CCAMS {
 	function collect_sqwk_range_data() {
 		$rfiles = scandir($this->root.$this->f_config);
 		$sqwk_ranges = [];
-		foreach ($rfiles as $rfile) {
-			$path_parts = pathinfo($rfile);
-			if ($path_parts['extension'] == 'dat') {
-				$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
-			} else if ($path_parts['extension'] == 'geojson') {
-				$sqwk_ranges = array_merge($sqwk_ranges, $this->get_sqwk_areas($this->root.$this->f_config.$rfile));
+		if (flock($this->lock, LOCK_EX)) {
+			foreach ($rfiles as $rfile) {
+				$path_parts = pathinfo($rfile);
+				if ($path_parts['extension'] == 'dat') {
+					$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
+				} else if ($path_parts['extension'] == 'geojson') {
+					$sqwk_ranges = array_merge($sqwk_ranges, $this->get_sqwk_areas($this->root.$this->f_config.$rfile));
+				}
 			}
+			$this->write_bin_file('groups.bin',$sqwk_ranges);
+			flock($this->lock, LOCK_UN);
 		}
-		$this->write_bin_file('ranges.bin',$sqwk_ranges,'AREA');
 	}
 
 	// the following functions are used for the website-based interactions (change and display codes)
@@ -607,8 +627,8 @@ class CCAMS {
 				// echo "\nPolygon no. ".$geometry_key;
 				foreach (explode(',',$feature['properties']['atc_callsign_match']) as $callsign) {
 					foreach ($polygon as $coordinates) {
-						$condition = (empty($feature['properties']['condition'])) ? 'zzzz' : strtolower($feature['properties']['condition']);
-						$code_areas[strtolower($callsign)][$condition][] = array('code' => octdec($feature['properties']['squawk_code']), 'coordinates' => $coordinates);
+						// $condition = (empty($feature['properties']['condition'])) ? 'zzzz' : strtolower($feature['properties']['condition']);
+						$code_areas[strtolower($callsign)][octdec($feature['properties']['squawk_code'])][] = $coordinates;
 						// $code_areas[$callsign][$condition]['code'] = $feature['properties']['squawk_code'];
 						// $code_areas[$callsign][$condition]['callsign'] = ((empty($feature['properties']['atc_callsign_match'])) ? '' : $feature['properties']['atc_callsign_match']);
 						// $code_areas[$callsign][$condition]['coordinates'][] = $coordinates;
@@ -620,7 +640,7 @@ class CCAMS {
 				}
 			}
 		}
-		echo var_dump($code_areas);
+		// echo var_dump($code_areas);
 		return $code_areas;
 	}
 
