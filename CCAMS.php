@@ -572,49 +572,55 @@ class CCAMS {
 		$path_parts = pathinfo($file);
 		$json = json_decode(file_get_contents($file), true);
 		if (!$json) {
-			$this->write_log("file reading error;config file ".$path_parts['filename'].".".$path_parts['extension']);
+			$this->write_log("file reading error;config file ".$path_parts['basename']);
 			return [];
 		}
 
 		foreach (['type', 'crs', 'features'] as $attr) {
 			if (!isset($json[$attr])) {
-				$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr'");
+				$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr'");
 				return [];
 			}
 		}
 		if ($json['type']!='FeatureCollection') {
-			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected type");
+			$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected type");
 			return [];
 		}
 		else if (!isset($json['crs']['properties']['name'])) {
-			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute 'name' for its crs");
+			$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute 'name' for its crs");
 			return [];
 		}
 		else if ($json['crs']['properties']['name']!='urn:ogc:def:crs:OGC:1.3:CRS84') {
-			$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does contains an unknown crs");
+			$this->write_log("json validation error;file ".$path_parts['basename']." does contains an unknown crs");
 			return [];
 		}
 
 		foreach ($json['features'] as $feature) {
 			foreach (['type', 'properties', 'geometry'] as $attr) {
 				if (!isset($feature[$attr])) {
-					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its feature");
-					return [];
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature");
+					continue 2;
 				}
 			}
-			foreach (['name', 'squawk_code'] as $attr) {
+			foreach (['squawk_code'] as $attr) {
 				if (!isset($feature['properties'][$attr])) {
-					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its feature properties");
-					return [];
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature properties");
+					continue 2;
 				}
 			}
-			$name = $feature['properties']['name'];
+			foreach (['atc_callsign_match'] as $attr) {
+				if (!array_key_exists($attr, $feature['properties'])) {
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature properties");
+					continue 2;
+				}
+			}
+			// $name = $feature['properties']['name'];
 			// echo "\n\n".$feature['properties']['name'];
 			// echo "\n".$feature['properties']['squawk_code'];
 			foreach (['type', 'coordinates'] as $attr) {
 				if (!isset($feature['geometry'][$attr])) {
-					$this->write_log("json validation error;file ".$path_parts['filename'].".".$path_parts['extension']." does not contain the expected attribute '$attr' for its geometry feature");
-					return [];
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its geometry feature");
+					continue 2;
 				}
 			}
 			
@@ -632,10 +638,10 @@ class CCAMS {
 						// $code_areas[$callsign][$condition]['code'] = $feature['properties']['squawk_code'];
 						// $code_areas[$callsign][$condition]['callsign'] = ((empty($feature['properties']['atc_callsign_match'])) ? '' : $feature['properties']['atc_callsign_match']);
 						// $code_areas[$callsign][$condition]['coordinates'][] = $coordinates;
-						foreach ($coordinates as $coordinate) {
+						// foreach ($coordinates as $coordinate) {
 							// echo var_dump($coordinate);
 							// echo "\n".$coordinate[1].", ".$coordinate[0];
-						}
+						// }
 					}
 				}
 			}
