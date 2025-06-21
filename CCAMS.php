@@ -434,11 +434,10 @@ class CCAMS {
 	private function get_group_code($callsign, array $conditions) {
 		if (array_key_exists('latitude',$_GET) && array_key_exists('longitude',$_GET)) {
 			$position = [floatval(filter_input(INPUT_GET,'longitude')), floatval(filter_input(INPUT_GET,'latitude'))];
-			// echo $callsign[0].'<br>';
 
 			foreach ($this->squawkgroups as $group_code => $groups) {
 				foreach ($groups as $group_key => $group) {
-					if ($this->is_debug) echo "Checking conditions for group code '".decoct($group_code)."'<br>";
+					if ($this->is_debug) echo "Checking conditions for group code '$group_code'<br>";
 					if (isset($group['ATC'])) {
 						if (!array_any($group['ATC'], function (string $value) use ($callsign) {
 							return str_starts_with(strtoupper($callsign[1]), strtoupper($value));
@@ -489,6 +488,21 @@ class CCAMS {
 		return false;
 	}
 
+	/*
+	Description: The point-in-polygon algorithm allows you to check if a point is
+	inside a polygon or outside of it.
+	Author: Michaël Niessen (2009)
+	Website: http://AssemblySys.com
+
+	If you find this script useful, you can show your
+	appreciation by getting Michaël a cup of coffee ;)
+	https://ko-fi.com/assemblysys
+
+	As long as this notice (including author name and details) is included and
+	UNALTERED, this code can be used and distributed freely.
+	*/
+
+	// adapted and simplified version of the source named above
 	private function pointInPolygon($point, $vertices) {
         // Check if the point is inside the polygon or on the boundary
         $intersections = 0; 
@@ -497,26 +511,16 @@ class CCAMS {
         for ($i=1; $i < $vertices_count; $i++) {
             $vertex1 = $vertices[$i-1]; 
             $vertex2 = $vertices[$i];
-            // if ($vertex1[1] == $vertex2[1] and $vertex1[1] == $point[1] and $point[0] > min($vertex1[0], $vertex2[0]) and $point[0] < max($vertex1[0], $vertex2[0])) { // Check if point is on an horizontal polygon boundary
-            //     return -1;
-            // }
             if ($point[1] > min($vertex1[1], $vertex2[1]) and $point[1] <= max($vertex1[1], $vertex2[1]) and $point[0] <= max($vertex1[0], $vertex2[0]) and $vertex1[1] != $vertex2[1]) { 
                 $xinters = ($point[1] - $vertex1[1]) * ($vertex2[0] - $vertex1[0]) / ($vertex2[1] - $vertex1[1]) + $vertex1[0]; 
-                // if ($xinters == $point[0]) { // Check if point is on the polygon boundary (other than horizontal)
-                //     return -1;
-                // }
                 if ($vertex1[0] == $vertex2[0] || $point[0] <= $xinters) {
                     $intersections++; 
                 }
             } 
         } 
+
         // If the number of edges we passed through is odd, then it's in the polygon. 
 		return $intersections % 2;
-        // if ($intersections % 2 != 0) {
-        //     return 1;
-        // } else {
-        //     return 0;
-        // }
     }
 
 	// generic functions to read and write files
@@ -630,15 +634,7 @@ class CCAMS {
 			if (!preg_match('/[0-7]{4}/', $feature['properties']['squawk_code'])) {
 				$this->write_log("json validation error;file ".$path_parts['basename']." does contain invalid characters for its feature property 'squawk_code' (".$feature['properties']['squawk_code'].")");
 			}
-			// foreach (['atc_callsign_match', 'condition'] as $attr) {
-			// 	if (!array_key_exists($attr, $feature['properties'])) {
-			// 		$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature properties");
-			// 		continue 2;
-			// 	}
-			// }
-			// $name = $feature['properties']['name'];
-			// echo "\n\n".$feature['properties']['name'];
-			// echo "\n".$feature['properties']['squawk_code'];
+
 			foreach (['geometry'] as $attr) {
 				if (!array_key_exists($attr, $feature)) {
 					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature");
@@ -657,7 +653,6 @@ class CCAMS {
 				}
 			}
 
-
 			if (isset($feature['geometry'])) {
 				foreach (['type', 'coordinates'] as $attr) {
 					if (!isset($feature['geometry'][$attr])) {
@@ -671,19 +666,10 @@ class CCAMS {
 					$geometry = [$geometry];
 				}
 
-
 				foreach ($geometry as $geometry_key => $polygon) {
 					// echo "\nPolygon no. ".$geometry_key;
 					foreach ($polygon as $coordinates) {
-						// $condition = (empty($feature['properties']['condition'])) ? 'zzzz' : strtolower($feature['properties']['condition']);
 						$conditions['geo_limit'][] = $coordinates;
-						// $code_areas[$callsign][$condition]['code'] = $feature['properties']['squawk_code'];
-						// $code_areas[$callsign][$condition]['callsign'] = ((empty($feature['properties']['atc_callsign_match'])) ? '' : $feature['properties']['atc_callsign_match']);
-						// $code_areas[$callsign][$condition]['coordinates'][] = $coordinates;
-						// foreach ($coordinates as $coordinate) {
-							// echo var_dump($coordinate);
-							// echo "\n".$coordinate[1].", ".$coordinate[0];
-						// }
 					}
 				}
 			} else if (!isset($feature['properties']['atc_callsign_match'])) {
@@ -691,15 +677,11 @@ class CCAMS {
 				continue;
 			}
 
-			echo $feature['properties']['squawk_code']."\n";
+			// echo $feature['properties']['squawk_code']."\n";
 			$code_areas[octdec($feature['properties']['squawk_code'])][] = $conditions;
 		}
-		echo var_dump($code_areas);
+		// echo var_dump($code_areas);
 		return $code_areas;
-	}
-
-	function set_sqwk_area($json) {
-
 	}
 
 	function get_sqwk_ranges() {
@@ -832,13 +814,16 @@ class CCAMSstats {
 }
 
 
-function array_any(array $array, callable $callback): bool {
-    foreach ($array as $key => $value) {
-        if ($callback($value, $key)) {
-            return true;
-        }
-    }
-    return false;
+// required for PHP < 8.4
+if (PHP_VERSION_ID < 80400) {
+	function array_any(array $array, callable $callback): bool {
+		foreach ($array as $key => $value) {
+			if ($callback($value, $key)) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 ?>
