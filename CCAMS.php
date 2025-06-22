@@ -740,6 +740,7 @@ class CCAMS {
 class CCAMSstats {
 
 	private $is_debug;
+	private $root;
 	private $f_log;
 	private $logfile_prefix;
 	private $logdata;
@@ -748,6 +749,7 @@ class CCAMSstats {
 
 	function __construct($debug = false) {
 		date_default_timezone_set("UTC");
+		$this->root = __DIR__;
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
 		$this->logdata = [];
