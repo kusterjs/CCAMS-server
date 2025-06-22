@@ -15,10 +15,13 @@ class CCAMS {
 	private $file_log;
 	public $logfile_prefix;
 	private $logtext_prefix;
+	private $file_lock;
+	public $lock;
 
 	private $users;
 	private $usedcodes;	// the codes reserved by the api
 	private $squawkranges;
+	private $squawkgroups;
 
 	private $squawk;	// the codes available for use
 
@@ -47,9 +50,19 @@ class CCAMS {
 			$this->is_debug = false;
 			error_reporting(0);
 		}
+
+		$this->file_lock = '/request.lock';
+		$this->lock = fopen($this->root.$this->file_lock, 'c'); // 'c' means create if not exists
+
+		if (!$this->lock) {
+			http_response_code(500);
+			$this->write_log("file reading error;lock file '$this->file_lock'");
+			exit;
+		}		
 	}
 
 	function __destruct() {
+		flock($this->lock, LOCK_UN);
 		//if ($this->is_debug) echo 'End of CCAMS class<br>';
 	}
 
@@ -65,7 +78,12 @@ class CCAMS {
 			echo '0000';
 			return;
 		}
-		if (!$this->check_user_request()) return http_response_code(429);
+
+		if (flock($this->lock, LOCK_EX)) {
+			$req = $this->check_user_request();
+			flock($this->lock, LOCK_UN);
+			if (!$req) return http_response_code(429);
+		}
 
 		$this->is_valid = true;
 	}
@@ -104,7 +122,7 @@ class CCAMS {
 			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br>';
 		}
 
-		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[4-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
+		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		$this->write_log("user agent not authorised");
 		return false;
@@ -121,7 +139,7 @@ class CCAMS {
 	private function check_user_request() {
 		if (!$this->users = $this->read_bin_file('users.bin')) {
 			// create an empty array if the bin file couldn't been read
-			$this->users = array();
+			$this->users = [];
 		}
 
 		// create compare hash
@@ -168,7 +186,7 @@ class CCAMS {
 
 	function request_code() {
 		if (!$this->is_valid) return;
-		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." starting request_code\n",FILE_APPEND);
 
 		// generate an array with all possible squawk codes
 		$squawk = array_fill(0,4095,'');
@@ -178,51 +196,72 @@ class CCAMS {
 			if ($code%64==0) unset($squawk[$code]);
 		}
 
-		// removed codes already in use
-		foreach ($this->codes_used() as $code) unset($squawk[$code]);
-
-		$this->squawk = $squawk;
-		// the squawk variable contains now only the codes that can be assigned
-
-		//echo var_dump($squawk);
-		$this->squawkranges = $this->read_bin_file('ranges.bin');
-		if (!($ssr = $this->squawk_from_range())) {
-			// if there is no key found, start preparing $squawk for assigning a random code
-			// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
-			foreach ($squawk as $code => $code) {
-				if ($code<64) unset($squawk[$code]);
+		// remove group codes
+		$this->squawkgroups = $this->read_bin_file('groups.bin');
+		foreach ($this->squawkgroups as $callsign_match => $group) {
+			foreach ($group as $group_code => $polygons) {
+				unset($squawk[$group_code]);
 			}
-			$this->squawk = $squawk;
-			// revised table of assignable codes
+		}
 
-			// removing all known FIR ranges from it
-			if (array_key_exists('FIR',$this->squawkranges)) {
-				foreach ($this->squawkranges['FIR'] as $rangename) {
-					foreach ($rangename as $rangecondition) {
-						foreach ($rangecondition as $range) {
-							for ($code = $range[0];$code<=$range[1];$code++) {
-								unset($squawk[$code]);
+		// removed codes already in use
+		if (!$this->networkmode || flock($this->lock, LOCK_EX)) {
+			if (array_key_exists('flightrule',$_GET)) {
+				$flightrule = filter_input(INPUT_GET,'flightrule');
+			} else if (array_key_exists('flightrules',$_GET)) {
+				$flightrule = filter_input(INPUT_GET,'flightrules');
+			} else {
+				$flightrule = 'I';
+			}
+
+			foreach ($this->codes_used() as $code) unset($squawk[$code]);
+
+			$this->squawk = $squawk;
+			// the squawk variable contains now only the codes that can be assigned
+
+			//echo var_dump($squawk);
+			$this->squawkranges = $this->read_bin_file('ranges.bin');
+			if (!($ssr = $this->squawk_from_rules($flightrule))) {
+				// if there is no key found, start preparing $squawk for assigning a random code
+				// remove specific ranges of codes from possible results (0001 to 0077, as they are usually reserved for VFR)
+				if ($flightrule == 'I') {
+					foreach ($squawk as $code => $code) {
+						if ($code<64) unset($squawk[$code]);
+					}
+				}
+				$this->squawk = $squawk;
+				// revised table of assignable codes
+
+				// removing all known FIR ranges from it
+				if (array_key_exists('FIR',$this->squawkranges)) {
+					foreach ($this->squawkranges['FIR'] as $rangename) {
+						foreach ($rangename as $rangecondition) {
+							foreach ($rangecondition as $range) {
+								for ($code = $range[0];$code<=$range[1];$code++) {
+									unset($squawk[$code]);
+								}
 							}
 						}
 					}
 				}
+
+				if (count($squawk) == 0) {
+					// if no codes are left, select a random code but disregarding all known FIR ranges
+					$squawk = $this->squawk;
+				}
+				if ($this->is_debug) echo 'selecting a random squawk<br>';
+				$ssr = array_rand($squawk);
 			}
+			$resp = sprintf("%04o",$ssr);
 
-			if (count($squawk) == 0) {
-				// if no codes are left, select a random code but disregarding all known FIR ranges
-				$squawk = $this->squawk;
+			if ($this->networkmode) {
+				// reserve code
+				$this->reserve_code($resp,2*3600);
+
+				// write cache files
+				$this->write_bin_file('squawks.bin',$this->usedcodes);
 			}
-			if ($this->is_debug) echo 'selecting a random squawk<br>';
-			$ssr = array_rand($squawk);
-		}
-		$resp = sprintf("%04o",$ssr);
-
-		if ($this->networkmode) {
-			// reserve code
-			$this->reserve_code($resp,2*3600);
-
-			// write cache files
-			$this->write_bin_file('squawks.bin',$this->usedcodes);
+			flock($this->lock, LOCK_UN);
 		}
 
 		// create output
@@ -233,19 +272,19 @@ class CCAMS {
 	}
 
 	private function codes_used() {
-		$codes = array();
-		$this->usedcodes = array();
+		$codes = [];
+		$this->usedcodes = [];
 		// check squawks used according vatsim-data file and exclude these codes from possible results
 		if ($this->networkmode) {
 			$vatsim = new VATSIM($this->is_debug);
 			$vdata = $vatsim->get_vdata();
 			foreach ($vdata['pilots'] as $pilot) {
 				if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
-				if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
+				if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
 			}
 
 			// collect already reserved codes
-			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = array();
+			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = [];
 			$this->usedcodes = $this->check_reserved_codes();
 
 			// exclude all cached codes from possible results
@@ -256,10 +295,7 @@ class CCAMS {
 
 		// exclude all codes already known to be assigned by the controller asking for a code
 		if (array_key_exists('codes',$_GET)) {
-			foreach (explode(',',urldecode(filter_input(INPUT_GET,'codes'))) as $code) {
-				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
-			}
-			foreach (explode('~',urldecode(filter_input(INPUT_GET,'codes'))) as $code) {
+			foreach (preg_split('/[,~]+/', urldecode(filter_input(INPUT_GET,'codes')), -1, PREG_SPLIT_NO_EMPTY) as $code) {
 				if ($this->reserve_code($code, 1800)) $codes[] = octdec($code);
 			}
 		}
@@ -273,7 +309,7 @@ class CCAMS {
 			}
 			return $codes;
 		}
-		return array();
+		return [];
 	}
 
 	function clean_squawk_cache() {
@@ -309,54 +345,59 @@ class CCAMS {
 		return true;
 	}
 
-	private function squawk_from_range() {
+	private function squawk_from_rules($flightrule) {
 		if (!$this->squawkranges) return false;
 
 		$vatspy = $this->read_bin_file('vatspy.bin');
-		if (!preg_match('/^([a-z\-]+)(_[a-z0-9]+)?_+[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
+		if (!preg_match('/^(([a-z\-]+)(_[a-z0-9]+)?)_+[a-z]+$/i',strtolower(filter_input(INPUT_GET,'callsign')),$callsign)) return false;
 		if ($orig = array_key_exists('orig',$_GET)) $orig = strtolower(filter_input(INPUT_GET,'orig'));
+		if ($dest = array_key_exists('dest',$_GET)) $dest = strtolower(filter_input(INPUT_GET,'dest'));
 
 		// collect conditions
-		$conditions = array();
-		if (array_key_exists('flightrule',$_GET)) if (filter_input(INPUT_GET,'flightrule')=='V') $conditions[] = 'vfr';
-		if (array_key_exists('flightrules',$_GET)) if (filter_input(INPUT_GET,'flightrules')=='V') $conditions[] = 'vfr';
-		if ($dest = array_key_exists('dest',$_GET)) {
-			$dest = strtolower(filter_input(INPUT_GET,'dest'));
-			for ($len=strlen($dest);$len>1;$len--) {
-				$conditions[] = substr($dest,0,$len);
+		$conditions = [];
+		if ($flightrule == 'V') {
+			$conditions['FR'] = 'vfr';
+			if ($orig) $conditions['ADEP'] = $orig;
+			if ($dest) $conditions['ADES'] = $dest;
+		} else {
+			if ($dest) {
+				for ($len=strlen($dest);$len>1;$len--) {
+					$conditions[] = substr($dest,0,$len);
+				}
+				if ($vatspy) {
+					if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
+					if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
+				}
 			}
-			if ($vatspy) {
-				if ($iata = array_search($dest,$vatspy['IATA'])) $conditions[] = $vatspy['FIR'][$iata];
-				if ($icao = array_search($dest,$vatspy['ICAO'])) $conditions[] = $vatspy['FIR'][$icao];
-			}
+			$conditions[] = 'zzzz';
 		}
 
 		// collecting search key words for the search in the APT table
-		$search = array();
+		$search = [];
 		if ($orig) $search[] = $orig;
-		$search[] = $callsign[1];
-		if ($vatspy && strlen($callsign[1]) == 3) if ($iata = array_search($callsign[1],$vatspy['IATA'])) $search[] = $vatspy['ICAO'][$iata];
+		$search[] = $callsign[2];
+		if ($vatspy && strlen($callsign[2]) == 3) if ($iata = array_search($callsign[2],$vatspy['IATA'])) $search[] = $vatspy['ICAO'][$iata];
 		$searches['APT'] = array_unique($search);
 
 		// collecting search key words for the search in the FIR table
-		$search = array();
+		$search = [];
 		if ($vatspy && $orig) if ($icao = array_search($orig,$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
-		if (isset($callsign[2])) $search[] = $callsign[1].$callsign[2];
 		$search[] = $callsign[1];
+		$search[] = $callsign[2];
 		if ($vatspy) {
-			if ($iata = array_search($callsign[1],$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
-			if ($icao = array_search($callsign[1],$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
+			if ($iata = array_search($callsign[2],$vatspy['IATA'])) $search[] = $vatspy['FIR'][$iata];
+			if ($icao = array_search($callsign[2],$vatspy['ICAO'])) $search[] = $vatspy['FIR'][$icao];
 		}
-		for ($len = strlen($callsign[1]); $len>1; $len--) $search[] = substr($callsign[1],0,$len);
+		for ($len = strlen($callsign[2]); $len>1; $len--) $search[] = substr($callsign[2],0,$len);
 		$searches['FIR'] = array_unique($search);
 
-		if ($code = $this->get_range_code($callsign, $searches,$conditions)) return $code;
+		if ($code = $this->get_range_code($callsign, $searches, $conditions)) return $code;
+		if ($flightrule == 'V' && $this->squawkgroups) if ($code = $this->get_group_code($callsign, $conditions)) return $code;
 		return false;
 	}
 
 	private function get_range_code($callsign, array $searches, array $conditions) {
 		// completition of the $conditions array
-		$conditions[] = 'zzzz';
 		$conditions = array_unique($conditions);
 
 		/*
@@ -364,7 +405,7 @@ class CCAMS {
 			1. going through all the range table names in $searches
 			2. going through all the search terms for that specific table
 			3. look for a range name starting with the search phrase
-			4. within that entry, going through all the $conditions entries and looking for a match (the default entry 'zzzz' is therefore added in the begin of this function)
+			4. within that entry, going through all the $conditions entries and looking for a match (the default entry is 'zzzz')
 			5. checking all available codes of a found range if they are available for assignment, and if so return that code
 		*/
 		foreach ($searches as $tablekey => $search) {
@@ -372,15 +413,14 @@ class CCAMS {
 			foreach ($search as $needle) {
 				foreach ($conditions as $condition) {
 					if ($this->is_debug) echo 'Scanning range in '.$tablekey.' table for match with '.strtoupper($needle).', condition is '.strtoupper($condition).'<br>';
-					if (array_key_exists($needle,$this->squawkranges[$tablekey]) && strlen($callsign[1]) <= strlen($needle)) {
+					if (array_key_exists($needle,$this->squawkranges[$tablekey]) && strlen($callsign[2]) <= strlen($needle)) {
 						// look first for an exact match
 						if ($codesearch = $this->search_code_range($tablekey, $needle, $condition)) return $codesearch;
 					} else {
 						// otherwise, try partial matches
 						foreach (array_keys($this->squawkranges[$tablekey]) as $rangename) {
 							// echo substr($rangename,0,strlen($needle)).' =? '.$needle.'<br>';
-							if (strcmp(substr($rangename,0,strlen($needle)),$needle) == 0 && strlen($callsign[1]) <= strlen($rangename)) {
-								//  && strlen($needle) < strlen($callsign[1]) 
+							if (strcmp(substr($rangename,0,strlen($needle)),$needle) == 0 && strlen($callsign[2]) <= strlen($rangename)) {
 								if ($codesearch = $this->search_code_range($tablekey, $rangename, $condition)) return $codesearch;
 							}
 						}
@@ -388,6 +428,46 @@ class CCAMS {
 				}
 			}
 		}
+		return false;
+	}
+
+	private function get_group_code($callsign, array $conditions) {
+		if (array_key_exists('latitude',$_GET) && array_key_exists('longitude',$_GET)) {
+			$position = [floatval(filter_input(INPUT_GET,'longitude')), floatval(filter_input(INPUT_GET,'latitude'))];
+
+			foreach ($this->squawkgroups as $group_code => $groups) {
+				foreach ($groups as $group_key => $group) {
+					if ($this->is_debug) echo "Checking conditions for group code '$group_code'<br>";
+					if (isset($group['ATC'])) {
+						if (!array_any($group['ATC'], function (string $value) use ($callsign) {
+							return str_starts_with(strtoupper($callsign[1]), strtoupper($value));
+						})) continue;
+					}
+					foreach ($conditions as $condition_key => $condition_str) {
+						if (isset($group[$condition_key])) {
+							if (strcasecmp($condition_str, $group[$condition_key]) != 0) {
+								continue 2;
+							}
+						}
+					}
+
+					if (isset($group['geo_limit'])) {
+						foreach ($group['geo_limit'] as $polygon_key => $polygon) {
+							if ($this->pointInPolygon($position, $polygon)) {
+								if ($this->is_debug) echo "Position ".implode(',', $position)." is within polygon $polygon_key<br>";
+								return $group_code;
+							} else {
+								if ($this->is_debug) echo "Position ".implode(',', $position)." is outside polygon $polygon_key<br>";
+							}
+						}
+					} else {
+						if ($this->is_debug) echo "Group code without geographical restrictions found<br>";
+						return $group_code;
+					}
+				}
+			}
+		}
+
 		return false;
 	}
 
@@ -408,6 +488,41 @@ class CCAMS {
 		return false;
 	}
 
+	/*
+	Description: The point-in-polygon algorithm allows you to check if a point is
+	inside a polygon or outside of it.
+	Author: Michaël Niessen (2009)
+	Website: http://AssemblySys.com
+
+	If you find this script useful, you can show your
+	appreciation by getting Michaël a cup of coffee ;)
+	https://ko-fi.com/assemblysys
+
+	As long as this notice (including author name and details) is included and
+	UNALTERED, this code can be used and distributed freely.
+	*/
+
+	// adapted and simplified version of the source named above
+	private function pointInPolygon($point, $vertices) {
+        // Check if the point is inside the polygon or on the boundary
+        $intersections = 0; 
+        $vertices_count = count($vertices);
+
+        for ($i=1; $i < $vertices_count; $i++) {
+            $vertex1 = $vertices[$i-1]; 
+            $vertex2 = $vertices[$i];
+            if ($point[1] > min($vertex1[1], $vertex2[1]) and $point[1] <= max($vertex1[1], $vertex2[1]) and $point[0] <= max($vertex1[0], $vertex2[0]) and $vertex1[1] != $vertex2[1]) { 
+                $xinters = ($point[1] - $vertex1[1]) * ($vertex2[0] - $vertex1[0]) / ($vertex2[1] - $vertex1[1]) + $vertex1[0]; 
+                if ($vertex1[0] == $vertex2[0] || $point[0] <= $xinters) {
+                    $intersections++; 
+                }
+            } 
+        } 
+
+        // If the number of edges we passed through is odd, then it's in the polygon. 
+		return $intersections % 2;
+    }
+
 	// generic functions to read and write files
 	function read_bin_file($file, $key = '') {
 		if (file_exists($this->root.$this->f_bin.$file)) {
@@ -421,7 +536,7 @@ class CCAMS {
 	}
 
 	private function write_bin_file($file, $data, $key = '') {
-		if ($this->is_debug) file_put_contents(__DIR__.$this->f_debug.'log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
+		if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__.", write_bin_file $file\n",FILE_APPEND);
 		if (empty($key)) {
 			//if ($this->is_debug) echo var_dump(serialize($data)).'<br>';
 			if (file_put_contents($this->root.$this->f_bin.$file, serialize($data))) return true;
@@ -429,30 +544,37 @@ class CCAMS {
 			$d[$key] = $data;
 			if (file_put_contents($this->root.$this->f_bin.$file, serialize($d))) return true;
 		} else {
-			if (file_put_contents($this->root.$this->f_bin.$file, serialize(array()))) return true;
+			if (file_put_contents($this->root.$this->f_bin.$file, serialize([]))) return true;
 		}
 		$this->write_log("file writing error;bin file ".$key);
 		return false;
 	}
 
 	private function write_log($text) {
-		file_put_contents(__DIR__.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
+		file_put_contents($this->root.$this->file_log,$this->logtext_prefix.sprintf("%.6f",microtime(true)-$this->timer).";".$text."\n",FILE_APPEND);
 	}
 
 	function collect_sqwk_range_data() {
 		$rfiles = scandir($this->root.$this->f_config);
-		foreach ($rfiles as $rfile) {
-			$path_parts = pathinfo($rfile);
-			if ($path_parts['extension'] == 'dat') {
-				$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
+		$sqwk_ranges = [];
+		if (flock($this->lock, LOCK_EX)) {
+			foreach ($rfiles as $rfile) {
+				$path_parts = pathinfo($rfile);
+				if ($path_parts['extension'] == 'dat') {
+					$this->set_sqwk_range($path_parts['filename'], file_get_contents($this->root.$this->f_config.$rfile));
+				} else if ($path_parts['extension'] == 'geojson') {
+					$sqwk_ranges = $sqwk_ranges + $this->get_sqwk_areas($this->root.$this->f_config.$rfile);
+				}
 			}
+			$this->write_bin_file('groups.bin',$sqwk_ranges);
+			flock($this->lock, LOCK_UN);
 		}
 	}
 
 	// the following functions are used for the website-based interactions (change and display codes)
 	function set_sqwk_range($key,$text) {
 		if ($text=='') {
-			$codes = array();
+			$codes = [];
 		} else {
 			if (!preg_match_all('/([A-Z0-9_]{3,}):([\d]{4})(?::([\d]{4}))?(?::([A-Z]{2,4}|\*))?/i',$text,$m)) return false;
 
@@ -467,8 +589,103 @@ class CCAMS {
 		$this->write_bin_file('ranges.bin',$codes,$key);
 	}
 
+	function get_sqwk_areas($file) {
+		$path_parts = pathinfo($file);
+		$condition_list = ['flight_rule' => 'FR', 'origin' => 'ADEP', 'destination' => 'ADES'];
+
+		$json = json_decode(file_get_contents($file), true);
+		if (!$json) {
+			$this->write_log("file reading error;config file ".$path_parts['basename']);
+			return [];
+		}
+
+		foreach (['type', 'crs', 'features'] as $attr) {
+			if (!isset($json[$attr])) {
+				$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr'");
+				return [];
+			}
+		}
+		if ($json['type']!='FeatureCollection') {
+			$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected type");
+			return [];
+		}
+		else if (!isset($json['crs']['properties']['name'])) {
+			$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute 'name' for its crs");
+			return [];
+		}
+		else if ($json['crs']['properties']['name']!='urn:ogc:def:crs:OGC:1.3:CRS84') {
+			$this->write_log("json validation error;file ".$path_parts['basename']." does contains an unknown crs");
+			return [];
+		}
+
+		foreach ($json['features'] as $feature) {
+			foreach (['type', 'properties'] as $attr) {
+				if (!isset($feature[$attr])) {
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature");
+					continue 2;
+				}
+			}
+			foreach (['squawk_code'] as $attr) {
+				if (!isset($feature['properties'][$attr])) {
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature properties");
+					continue 2;
+				}
+			}
+			if (!preg_match('/[0-7]{4}/', $feature['properties']['squawk_code'])) {
+				$this->write_log("json validation error;file ".$path_parts['basename']." does contain invalid characters for its feature property 'squawk_code' (".$feature['properties']['squawk_code'].")");
+			}
+
+			foreach (['geometry'] as $attr) {
+				if (!array_key_exists($attr, $feature)) {
+					$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its feature");
+					continue 2;
+				}
+			}
+
+			$conditions = [];
+			foreach ($feature['properties'] as $property => $value) {
+				if ($property == 'atc_callsign_match') {
+					$conditions['ATC'] = explode(',', $value);
+				} else if (array_key_exists($property, $condition_list)) {
+					if ($value) {
+						$conditions[$condition_list[$property]] = $value;
+					}
+				}
+			}
+
+			if (isset($feature['geometry'])) {
+				foreach (['type', 'coordinates'] as $attr) {
+					if (!isset($feature['geometry'][$attr])) {
+						$this->write_log("json validation error;file ".$path_parts['basename']." does not contain the expected attribute '$attr' for its geometry feature");
+						continue 2;
+					}
+				}
+
+				$geometry = $feature['geometry']['coordinates'];
+				if (!str_contains($feature['geometry']['type'], 'Multi')) {
+					$geometry = [$geometry];
+				}
+
+				foreach ($geometry as $geometry_key => $polygon) {
+					// echo "\nPolygon no. ".$geometry_key;
+					foreach ($polygon as $coordinates) {
+						$conditions['geo_limit'][] = $coordinates;
+					}
+				}
+			} else if (!isset($feature['properties']['atc_callsign_match'])) {
+				$this->write_log("json validation error;file ".$path_parts['basename']." is missing either of the attributes 'atc_callsign_match' for its feature properties or 'geometry' for its feature");
+				continue;
+			}
+
+			// echo $feature['properties']['squawk_code']."\n";
+			$code_areas[octdec($feature['properties']['squawk_code'])][] = $conditions;
+		}
+		// echo var_dump($code_areas);
+		return $code_areas;
+	}
+
 	function get_sqwk_ranges() {
-		$json = array();
+		$json = [];
 		if ($codes = $this->read_bin_file('ranges.bin')) {
 			foreach ($codes as $table => $category) {
 				$txt = '';
@@ -487,7 +704,7 @@ class CCAMS {
 	}
 
 	function get_reserved_codes() {
-		$json = array();
+		$json = [];
 		if ($codes = $this->read_bin_file('squawks.bin')) {
 			ksort($codes);
 			$txt = '';
@@ -500,7 +717,7 @@ class CCAMS {
 
 	// used to get the date list for statistics
 	function get_logs() {
-		if (($logfiles = glob(__DIR__.$this->f_log.$this->logfile_prefix.'*'))!==false) {
+		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
 			rsort($logfiles);
 			foreach ($logfiles as $file) {
 				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
@@ -533,7 +750,7 @@ class CCAMSstats {
 		date_default_timezone_set("UTC");
 		$this->f_log = '/log/';
 		$this->logfile_prefix = 'log_';
-		$this->logdata = array();
+		$this->logdata = [];
 
 		if ($debug) {
 			$this->is_debug = true;
@@ -548,7 +765,7 @@ class CCAMSstats {
 
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
-		if (($logdata = file(__DIR__.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
+		if (($logdata = file($this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
 		foreach ($logdata as $line) {
 			$data = explode(";",$line);
 			if (count($data)==9) $this->logdata[] = $data;
@@ -597,6 +814,16 @@ class CCAMSstats {
 }
 
 
-
+// required for PHP < 8.4
+if (PHP_VERSION_ID < 80400) {
+	function array_any(array $array, callable $callback): bool {
+		foreach ($array as $key => $value) {
+			if ($callback($value, $key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
 
 ?>
