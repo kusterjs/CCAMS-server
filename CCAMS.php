@@ -770,8 +770,8 @@ class CCAMSstats {
 		if (($logdata = file($this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
 		foreach ($logdata as $line) {
 			$data = explode(";",$line);
-			if (count($data)==9) $this->logdata[] = $data;
-			//echo var_dump($data).'<br>';
+			if (count($data)>=8) $this->logdata[] = $data;
+			// echo var_dump($data).'<br>';
 		}
 		//echo var_dump($this->logdata);
 	}
