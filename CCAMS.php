@@ -122,7 +122,7 @@ class CCAMS {
 			if ($this->is_debug) echo 'network mode enabled (sim '.(array_key_exists('sim',$_GET) ? 'true' : 'false').', connectiontype '.(array_key_exists('connectiontype',$_GET) ? filter_input(INPUT_GET,'connectiontype') : 'false').')<br>';
 		}
 
-		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
+		if (preg_match('/EuroScope\s(\d+\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		$this->write_log("user agent not authorised");
 		return false;
@@ -144,12 +144,10 @@ class CCAMS {
 
 		// create compare hash
 		$hash = filter_input(INPUT_GET,'callsign');
-		if (preg_match('/EuroScope\s(\d\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) {
-			if (array_key_exists('orig',$_GET)) $hash .= filter_input(INPUT_GET,'orig');
-			if (array_key_exists('dest',$_GET)) $hash .= filter_input(INPUT_GET,'dest');
-			if (array_key_exists('latitude',$_GET)) $hash .= filter_input(INPUT_GET,'latitude');
-			if (array_key_exists('longitude',$_GET)) $hash .= filter_input(INPUT_GET,'longitude');
-		}
+		if (array_key_exists('orig',$_GET)) $hash .= filter_input(INPUT_GET,'orig');
+		if (array_key_exists('dest',$_GET)) $hash .= filter_input(INPUT_GET,'dest');
+		if (array_key_exists('latitude',$_GET)) $hash .= filter_input(INPUT_GET,'latitude');
+		if (array_key_exists('longitude',$_GET)) $hash .= filter_input(INPUT_GET,'longitude');
 
 		if (isset($this->users[$this->client_ipaddress])) {
 			// check details of IP address which has already an entry
