@@ -3,3 +3,4 @@ data/
 log/
 debug/
 test.php
+request.lock
