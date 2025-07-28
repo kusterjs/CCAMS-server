@@ -359,7 +359,7 @@ class CCAMS {
 			if ($dest) $conditions['ADES'] = $dest;
 		} else {
 			if ($dest) {
-				for ($len=strlen($dest);$len>1;$len--) {
+				for ($len=strlen($dest);$len>0;$len--) {
 					$conditions[] = substr($dest,0,$len);
 				}
 				if ($vatspy) {
