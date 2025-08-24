@@ -5,6 +5,7 @@ class VATSIM {
 	private $f_orig;
 	private $f_bin;
 	private $is_debug;
+	public $vdata_upd;
 	
 	function __construct($debug = false) {
 		$this->f_orig = '/data/';
@@ -18,6 +19,8 @@ class VATSIM {
 			$this->is_debug = false;
 			error_reporting(0);
 		}
+
+		$this->vdata_upd = false;
 	}
 	
 	function get_filetype($datatype) {
@@ -33,19 +36,23 @@ class VATSIM {
 						break;
 					}
 				}
-				while (1) {
-					// get url from status file
-					if ($filecontent = file_get_contents(__DIR__.$this->f_orig.$v_status)) {
-						if (preg_match('/(?<type>json)(?<version>[3])[=](?<url>(?:http[s]?:)[\/]{2}.*?(?<name>[^.\/]+[.][^.\/]+)[\/](?:.*?[\/])?(?<file>[\S]+))/m',$filecontent,$m)) {
-							if ($copy = $this->curl_copy($m['url'],$datatype.'.'.$m['type'])) {
-								$write = $this->write_cache_file(json_decode(file_get_contents($copy),true),'vdata.bin');
-							}
-						}
-						break;
-					}
-					if (isset($f)) break;
+
+				if (!($filecontent = file_get_contents(__DIR__.$this->f_orig.$v_status))) {
 					$f = new VATSIM();
 					$f->get_filetype('vatsim-status');
+				}
+
+				// get url from status file
+				if ($filecontent) {
+					if (preg_match_all('/(?<type>json)(?<version>[3])[=](?<url>(?:http[s]?:)[\/]{2}.*?(?<name>[^.\/]+[.][^.\/]+)[\/](?:.*?[\/])?(?<file>[\S]+))/m',$filecontent,$matches,PREG_SET_ORDER)) {
+						foreach ($matches as $m) {
+							if ($copy = $this->curl_copy($m['url'],$datatype.'.'.$m['type'])) {
+								$write = $this->write_cache_file(json_decode(file_get_contents($copy),true),'vdata.bin');
+								$this->vdata_upd = true;
+								break;
+							}
+						}
+					}
 				}
 				break;
 			case 'vatspy-data':
