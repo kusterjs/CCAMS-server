@@ -5,6 +5,7 @@
 <title>CCAMS statistics</title>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-autocolors"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
 <!--<link rel="stylesheet" href="style.css">-->
 </head>
@@ -114,7 +115,11 @@
 					display: true,
 					text: 'Facilities'
 				},
-				datalabels: false
+				datalabels: false,
+				colors: {
+					enabled: true,
+					forceOverride: false
+				}
 			}
 		}
 	});	
@@ -304,10 +309,10 @@
 		
 		post.done( function(data) {
 			// designatorChart.data.datasets.pop();
-			csChart.data.datasets.pop();
+			// csChart.data.datasets.pop();
 			facilityChart.data.datasets.pop();
 			// timeChart.data.datasets.pop();
-			clientChart.data.datasets.pop();
+			clientChart.data.datasets = [];
 			try {
 				var resp = JSON.parse(data);
 				
@@ -332,7 +337,34 @@
 				timeChart.update();
 
 				clientChart.data.labels = Object.keys(resp[0].client);
-				clientChart.data.datasets.push({data: Object.values(resp[2].client)});
+				clientChart.data.datasets.push({
+					data: Object.values(resp[0].client),
+					backgroundColor: [
+						'rgb(54, 162, 235)',
+						'rgb(255, 99, 132)',
+						'rgb(255, 159, 64)',
+						'rgb(255, 205, 86)',
+						'rgb(75, 192, 192)',
+						'rgb(153, 102, 255)',
+						'rgb(201, 203, 207)'
+					]
+				});
+
+				// Extract the arrays
+				const setA = Object.values(resp[1].client);
+				const setB = Object.values(resp[2].client);
+				const clientMerged = [];
+				const backgroundColors = [];
+				for (let i = 0; i < setA.length; i++) {
+					clientMerged.push(setB[i]);
+					backgroundColors.push('rgba(64,128,64,0.8)');
+					clientMerged.push(setA[i]);
+					backgroundColors.push('rgba(128,64,64,0.8)');
+				}
+				clientChart.data.datasets.push({
+					data: clientMerged,
+					backgroundColor: backgroundColors
+				});
 				clientChart.update();
 
 			} catch (e) {
