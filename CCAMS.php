@@ -273,14 +273,21 @@ class CCAMS {
 		$codes = [];
 		$this->usedcodes = [];
 		// check squawks used according vatsim-data file and exclude these codes from possible results
-		if ($this->networkmode) {
+		if ($this->networkmode || $this->is_debug) {
 			$vatsim = new VATSIM($this->is_debug);
 			$vdata = $vatsim->get_vdata();
-			foreach ($vdata['pilots'] as $pilot) {
-				if ($pilot['transponder']==decoct(octdec($pilot['transponder']))) $codes[] = octdec($pilot['transponder']);
-				if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
+			if ($this->networkmode || $vatsim->vdata_upd) {
+				foreach ($vdata['pilots'] as $pilot) {
+					if ($pilot['transponder']==decoct(octdec($pilot['transponder'])) && octdec($pilot['transponder'])%64!=0) $codes[] = octdec($pilot['transponder']);
+					if ($this->is_debug) file_put_contents($this->root.$this->f_debug.'log.txt',date("c").' '.__FILE__." invalid code in vatspy file detected (".$pilot['callsign'].", ".$pilot['transponder'].")\n",FILE_APPEND);
+				}
+				$codes = array_unique($codes);
+				sort($codes);
 			}
+			if (!empty($codes) && $vatsim->vdata_upd) $this->write_log("vdata updated extracted transponder codes;".implode(',',array_map(function($num) { return sprintf("%04d", decoct($num)); }, $codes)));
+		}
 
+		if (!$this->networkmode) {
 			// collect already reserved codes
 			//if (!$this->usedcodes = $this->check_reserved_codes()) $this->usedcodes = [];
 			$this->usedcodes = $this->check_reserved_codes();
