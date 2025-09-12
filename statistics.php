@@ -115,11 +115,7 @@
 					display: true,
 					text: 'Facilities'
 				},
-				datalabels: false,
-				colors: {
-					enabled: true,
-					forceOverride: false
-				}
+				datalabels: false
 			}
 		}
 	});	
@@ -182,17 +178,42 @@
 					display: true,
 					text: 'Clients'
 				},
-				datalabels: {
-					display: false,
-					color: 'black',
-					anchor: 'center',
-					align: 'center',
-					formatter: function(value, context) {
-						// context.chart.data.labels contains all labels
-						const label = context.chart.data.labels[context.dataIndex];
-						return `${label}: ${value}`;
+				datalabels: false,
+				tooltip: {
+					callbacks: {
+						title: function (context) {
+							const chart = context[0].chart;
+							const dataIndex = context[0].dataIndex;
+							const datasetIndex = context[0].datasetIndex;
+
+							if (datasetIndex === 0) {
+								// Dataset 1 → title is just the category label
+								return chart.data.labels[dataIndex];
+							} else {
+								// Dataset 2 → map to the parent category
+								const categoryIndex = Math.floor(dataIndex / 2);
+								return chart.data.labels[categoryIndex];
+							}
+						},
+						label: function (context) {
+							// const chart = context.chart;
+							const datasetIndex = context.datasetIndex;
+							const dataIndex = context.dataIndex;
+
+							if (datasetIndex === 0) {
+								// Dataset 1 → show category + value
+								return `${context.dataset.label}: ${context.formattedValue}`;
+							} else {
+								// Dataset 2 → alternate Yes / No per category
+								return `${context.dataset.label[dataIndex]}: ${context.formattedValue}`;
+							}
+						}
 					}
-				}
+				}/*,
+				colors: {
+					enabled: true,
+					forceOverride: true
+				}*/
 			}
 		},
 		plugins: [ChartDataLabels]
@@ -338,6 +359,7 @@
 
 				clientChart.data.labels = Object.keys(resp[0].client);
 				clientChart.data.datasets.push({
+					label: "Total Requests",
 					data: Object.values(resp[0].client),
 					backgroundColor: [
 						'rgb(54, 162, 235)',
@@ -353,18 +375,22 @@
 				// Extract the arrays
 				const setA = Object.values(resp[1].client);
 				const setB = Object.values(resp[2].client);
-				const clientMerged = [];
-				const backgroundColors = [];
+				const datasetValues = [];
+				const datasetLabels = [];
+				const datasetBackgroundColors = [];
 				for (let i = 0; i < setA.length; i++) {
-					clientMerged.push(setB[i]);
-					backgroundColors.push('rgba(64,128,64,0.8)');
-					clientMerged.push(setA[i]);
-					backgroundColors.push('rgba(128,64,64,0.8)');
+					datasetValues.push(setB[i], setA[i]);
+					datasetBackgroundColors.push('rgba(64,128,64,0.8)', 'rgba(128,64,64,0.8)');
+					datasetLabels.push('Approved', 'Rejected');
 				}
+
 				clientChart.data.datasets.push({
-					data: clientMerged,
-					backgroundColor: backgroundColors
+					label: datasetLabels,
+					data: datasetValues,
+					backgroundColor: datasetBackgroundColors
 				});
+
+				// clientChart.data.datasets = [dataset1, dataset2];
 				clientChart.update();
 
 			} catch (e) {
