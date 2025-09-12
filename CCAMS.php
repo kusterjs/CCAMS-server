@@ -794,6 +794,7 @@ class CCAMSstats {
 			}
 			foreach ($this->logdata as $log) {
 				$date = new DateTimeImmutable($log[0]);
+				if (!array_filter(array('not authorised', 'spam protection', 'code assigned'), fn($needle) => strpos($log[7], $needle) !== false)) continue;
 				if ($i > 0 && $i-1 != ($log[7] == 'code assigned')) continue;
 				//echo var_dump($date->format('Y-m-d'));
 				$stats['date'][$date->format('Y-m-d')] += 1;

@@ -209,11 +209,11 @@
 							}
 						}
 					}
-				},
+				}/*,
 				colors: {
 					enabled: true,
-					forceOverride: false
-				}
+					forceOverride: true
+				}*/
 			}
 		},
 		plugins: [ChartDataLabels]
