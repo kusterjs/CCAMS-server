@@ -25,7 +25,7 @@ if (array_key_exists('r',$_GET)) {
 			echo $CCAMS->get_reserved_codes();
 			break;
 		case 'logfiles':
-			echo $CCAMS->get_logs();
+			echo $CCAMSstats->logStats();
 			break;
 		case 'stats-daily':
 			$CCAMSstats->readStats($seldate);

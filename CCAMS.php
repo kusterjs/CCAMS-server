@@ -719,26 +719,6 @@ class CCAMS {
 		}
 		return json_encode(array(trim($txt)));
 	}
-
-	// used to get the date list for statistics
-	function get_logs() {
-		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
-			rsort($logfiles);
-			foreach ($logfiles as $file) {
-				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
-				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
-				$logs['day'][$date->format('Y-m-d')] = '';
-				$logs['week'][$date->format('W')] = '';
-				$logs['month'][$date->format('F Y')] = '';
-			}
-			foreach ($logs as $key => $value) {
-				$resp[$key] = array_keys($value);
-			}
-			//array_unique($resp, SORT_STRING);
-			return json_encode($resp);
-		}
-		return false;
-	}
 }
 
 
@@ -769,6 +749,27 @@ class CCAMSstats {
 			error_reporting(0);
 		}
 	}
+
+	// used to get the date list for statistics
+	function logStats() {
+		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
+			rsort($logfiles);
+			foreach ($logfiles as $file) {
+				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
+				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
+				$logs['day'][$date->format('Y-m-d')] = '';
+				$logs['week'][$date->format('W')] = '';
+				$logs['month'][$date->format('F Y')] = '';
+			}
+			foreach ($logs as $key => $value) {
+				$resp[$key] = array_keys($value);
+			}
+			//array_unique($resp, SORT_STRING);
+			return json_encode($resp);
+		}
+		return false;
+	}
+
 
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
