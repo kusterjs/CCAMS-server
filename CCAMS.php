@@ -124,7 +124,7 @@ class CCAMS {
 
 		if (preg_match('/EuroScope\s(\d+\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
-		$this->write_log("user agent not authorised");
+		$this->write_log("user agent not authorised;".$_SERVER['HTTP_USER_AGENT']);
 		return false;
 	}
 
@@ -132,7 +132,7 @@ class CCAMS {
 		if (!array_key_exists('callsign',$_GET)) return false;
 		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',filter_input(INPUT_GET,'callsign'))) return true;
 		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
-		$this->write_log("user callsign not authorised");
+		$this->write_log("user callsign not authorised;".filter_input(INPUT_GET,'callsign'));
 		return false;
 	}
 
