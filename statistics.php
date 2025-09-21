@@ -11,7 +11,8 @@
 </head>
 <body>
 
-	<select name="date" id="date">
+	<label for="datePicker">Date</label>
+	<input type="date" name="datePicker" id="datePicker">
 	</select>
 	<br />
 
@@ -94,18 +95,18 @@
 			}
 		}
 	});	
-	var csChart = new Chart($('#csChart'), {
-		type: 'bar',
-		data: {},
-		options: {
-			responsive: true,
-			scales: {
-				y: {
-					beginAtZero: true
-				}
-			}
-		}
-	});	
+	// var csChart = new Chart($('#csChart'), {
+	// 	type: 'bar',
+	// 	data: {},
+	// 	options: {
+	// 		responsive: true,
+	// 		scales: {
+	// 			y: {
+	// 				beginAtZero: true
+	// 			}
+	// 		}
+	// 	}
+	// });	
 	var facilityChart = new Chart($('#facilityChart'), {
 		type: 'doughnut',
 		data: {},
@@ -313,20 +314,11 @@
 		}
 	});	
 
-	$.loadDays = function() {
-		$.getJSON( "json?r=logfiles", function( data ) {
-			$.each( data['day'], function( range, val ) {
-				$('#date').append('<option value="' + val + '">' + val + '</option>');
-				//$("textarea#"+range).val(val);
-			});
-		});
-	};
-	
-	$.loadStats = function(date) {
-		var data = {stats: 'daily', date: $('#date').val(), debug: false};
+	$.loadStatsDaily = function(date) {
+		var data = {stats: 'day', date: date, debug: false};
 		if ($('#debug').val() != '') data.debug = true;
 		
-		var post = $.post("json?r=stats-daily", data);
+		var post = $.post("json?r=stats", data);
 		
 		post.done( function(data) {
 			// designatorChart.data.datasets.pop();
@@ -397,8 +389,13 @@
 				alert('Daily statistics incomplete')
 			}
 		});
+	};
 		
-		post = $.post("json?r=stats-weekly", date);
+	$.loadStatsWeekly = function(date) {
+		var data = {stats: 'week', date: date, debug: false};
+		if ($('#debug').val() != '') data.debug = true;
+		
+		post = $.post("json?r=stats", data);
 		
 		post.done( function(data) {
 			// weekRequestChart.data.datasets.pop();
@@ -413,9 +410,14 @@
 			} catch (e) {
 				alert('Weekly statistics incomplete')
 			}
-		});		
+		});
+	};
 
-		post = $.post("json?r=stats-monthly", date);
+	$.loadStatsMonthly = function(date) {
+		var data = {stats: 'month', date: date, debug: false};
+		if ($('#debug').val() != '') data.debug = true;
+		
+		post = $.post("json?r=stats", data);
 		
 		post.done( function(data) {
 			// monthRequestChart.data.datasets.pop();
@@ -434,45 +436,49 @@
 	};
 
 	$().ready( function() {
+		let searchParams = new URLSearchParams(window.location.search);
+		if (searchParams.has('debug')) $('#debug').val(true);
+
+		let prevRequest = null;
+
 		$( function() {
-			$.loadDays();
-			$.loadStats({date: 'today'});
-			let searchParams = new URLSearchParams(window.location.search);
-			if (searchParams.has('debug')) $('#debug').val(true);
-		});
-//		setInterval( function() {
-//			$.loadRanges();
-//		}, 5000);
-		$('#date').change (function () {
-			$.loadStats($('#date'));
-			//$.loadRanges();
-		});
-
-
-		/*$('#statsForm').submit( function (event) {
-			$.loadStats(event);
+			var data = {debug: false};
+			if ($('#debug').val() != '') data.debug = true;
 			
-			/*event.preventDefault();
-
-			var posting = $.post( "json?r=stats", $('#statsForm').serialize());
+			var post = $.post("json?r=logfiles", data);
 			
-			posting.done( function (data) {
-				//alert('Update successful');
-				//var c1 = data;
-				//alert(data['callsign']);
-				//myChart.data.labels = data.get('callsign');
+			post.done( function(data) {
 				var resp = JSON.parse(data);
-				console.log(Object.keys(resp.callsign));
-				console.log(Object.values(resp.callsign));
-				myChart.data.labels = Object.keys(resp.callsign);
-				myChart.data.datasets.pop();
-				myChart.data.datasets.push({label: 'Call Signs', data: Object.values(resp.callsign)});
-				myChart.update();
-				//myChart.data.datasets.data = [12, 19, 3, 5, 2, 3];
-				//$.loadRanges();
-				//$('#result').empty().append(data);
-			})*/
-		//});
+				$('#datePicker').val(resp['day'][0]);
+				$('#datePicker').attr('min', resp['day'].pop());
+				$('#datePicker').attr('max', resp['day'].shift());
+
+				$.loadStatsDaily(resp['day'][0]);
+				$.loadStatsWeekly(resp['day'][0]);
+				$.loadStatsMonthly(resp['day'][0]);
+
+				prevRequest = resp;
+			});
+
+		});
+
+		$('#datePicker').change (function () {
+			var data = {date: $(this).val(), count: 1, debug: false};
+			if ($('#debug').val() != '') data.debug = true;
+
+			var post = $.post("json?r=logfiles", data);
+			
+			post.done( function(data) {
+				var resp = JSON.parse(data);
+
+				if (resp['day'][0] != prevRequest['day'][0]) $.loadStatsDaily(resp['day'][0]);
+				if (resp['week'][0] != prevRequest['week'][0]) $.loadStatsWeekly(resp['day'][0]);
+				if (resp['month'][0] != prevRequest['month'][0]) $.loadStatsMonthly(resp['day'][0]);
+
+				prevRequest = resp;
+			});
+
+		});
 	});
 	
 

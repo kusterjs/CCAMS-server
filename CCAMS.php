@@ -751,15 +751,17 @@ class CCAMSstats {
 	}
 
 	// used to get the date list for statistics
-	function logStats() {
+	function logStats($maxDate = new DateTime(), $maxCount = 64) {
 		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
 			rsort($logfiles);
 			foreach ($logfiles as $file) {
 				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
-				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
+				if ($date > $maxDate) continue;
+				// if ($date->diff(new DateTime('now'))->days > $maxDaysBack) continue;
 				$logs['day'][$date->format('Y-m-d')] = '';
-				$logs['week'][$date->format('W')] = '';
-				$logs['month'][$date->format('F Y')] = '';
+				$logs['week'][$date->format('Y-W')] = '';
+				$logs['month'][$date->format('Y-m')] = '';
+				if (count($logs['day']) >= $maxCount) break;
 			}
 			foreach ($logs as $key => $value) {
 				$resp[$key] = array_keys($value);
@@ -772,10 +774,16 @@ class CCAMSstats {
 
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
-		if (($logdata = file($this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
+		$file = $this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt';
+		if (!file_exists($file)) return false;
+		if (($logdata = file($file))===false) return false;
 		foreach ($logdata as $line) {
 			if (count($data = explode(";",trim($line))) >= 8) {
-				if (count($data) < 9) $data[] = '';
+				while (substr_count($data[2],'(') != substr_count($data[2],')') && count($data) > 8) {
+					$data = array_merge(array_slice($data, 0, 2), [implode(';', array_slice($data, 2, 2))], array_slice($data, 4));
+				}
+				if (count($data) == 8) $data[] = '';
+				if (count($data) != 9) continue;
 				$data = array_combine(array('timestamp', 'IP address', 'HTTP user agent', 'HTTP request URI', 'debug', 'callsign', 'execution time', 'log event', 'event result'), $data);
 				if (preg_match_all('/(\w+)=([^&]+)/', $data['HTTP request URI'], $getparams, PREG_SET_ORDER)) {
 					foreach ($getparams as $getparam) {
