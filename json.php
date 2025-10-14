@@ -10,10 +10,10 @@ if (array_key_exists('debug',$_GET)) {
 }
 
 if (array_key_exists('r',$_GET)) {
-	if (array_key_exists('date', $_POST)) $seldate = new DateTime($_POST['date']);
+	if (array_key_exists('date', $_POST)) $seldate = new DateTime(filter_input(INPUT_POST,'date'));
 	else $seldate = new DateTime('now');
 
-	switch ($_GET['r']) {
+	switch (filter_input(INPUT_GET,'r')) {
 		case 'get-ranges':
 			echo $CCAMS->get_sqwk_ranges();
 			break;
@@ -25,7 +25,10 @@ if (array_key_exists('r',$_GET)) {
 			echo $CCAMS->get_reserved_codes();
 			break;
 		case 'logfiles':
-			echo $CCAMS->get_logs();
+			if (array_key_exists('count',$_POST)) echo $CCAMSstats->logStats($seldate, filter_input(INPUT_POST,'count'));
+			else echo $CCAMSstats->logStats($seldate);
+			break;
+		case 'logdata':
 			break;
 		case 'stats-daily':
 			$CCAMSstats->readStats($seldate);
@@ -50,6 +53,33 @@ if (array_key_exists('r',$_GET)) {
 			echo $CCAMSstats->createStats();
 			break;
 		case 'stats-yearly':
+
+			break;
+		case 'stats':
+			switch (filter_input(INPUT_POST,'stats')) {
+				case 'day':
+					$CCAMSstats->readStats($seldate);
+					break;
+				case 'week':
+					$date = clone $seldate;
+					$date->sub(new DateInterval('P'.$date->format('N').'D'));
+					do {
+						$date->add(new DateInterval('P1D'));
+						$CCAMSstats->readStats($date);
+					} while ($date->format('N') < 7);
+					break;
+				case 'month':
+					$date = clone $seldate;
+					$date->sub(new DateInterval('P'.$date->format('j').'D'));
+					while ($date->add(new DateInterval('P1D'))->format('n') == $seldate->format('n')) {
+						$CCAMSstats->readStats($date);
+					}
+					break;
+				default:
+
+					break 2;
+			}
+			echo $CCAMSstats->createStats();
 
 			break;
 		default:

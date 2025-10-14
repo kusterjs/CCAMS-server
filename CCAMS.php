@@ -124,7 +124,7 @@ class CCAMS {
 
 		if (preg_match('/EuroScope\s(\d+\.){3}\d+\splug-in:\sCCAMS\/2\.[5-9]\.\d/',$_SERVER['HTTP_USER_AGENT'])) return true;
 		if (preg_match('/CCAMS Server V1/',$_SERVER['HTTP_USER_AGENT'])) return true;
-		$this->write_log("user agent not authorised");
+		$this->write_log("user agent not authorised;".$_SERVER['HTTP_USER_AGENT']);
 		return false;
 	}
 
@@ -132,7 +132,7 @@ class CCAMS {
 		if (!array_key_exists('callsign',$_GET)) return false;
 		if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',filter_input(INPUT_GET,'callsign'))) return true;
 		//mail('ccams@kilojuliett.ch','CCAMS unauthorised callsign use detected',$this->logtext_prefix);
-		$this->write_log("user callsign not authorised");
+		$this->write_log("user callsign not authorised;".filter_input(INPUT_GET,'callsign'));
 		return false;
 	}
 
@@ -144,10 +144,12 @@ class CCAMS {
 
 		// create compare hash
 		$hash = filter_input(INPUT_GET,'callsign');
-		if (array_key_exists('orig',$_GET)) $hash .= filter_input(INPUT_GET,'orig');
-		if (array_key_exists('dest',$_GET)) $hash .= filter_input(INPUT_GET,'dest');
-		if (array_key_exists('latitude',$_GET)) $hash .= filter_input(INPUT_GET,'latitude');
-		if (array_key_exists('longitude',$_GET)) $hash .= filter_input(INPUT_GET,'longitude');
+		if (preg_match('/EuroScope\s(\d+\.){3}\d+\splug-in:\sCCAMS\/2\.(5\.2|[6-9]\.\d)/',$_SERVER['HTTP_USER_AGENT'])) {
+			if (array_key_exists('orig',$_GET)) $hash .= filter_input(INPUT_GET,'orig');
+			if (array_key_exists('dest',$_GET)) $hash .= filter_input(INPUT_GET,'dest');
+			if (array_key_exists('latitude',$_GET)) $hash .= filter_input(INPUT_GET,'latitude');
+			if (array_key_exists('longitude',$_GET)) $hash .= filter_input(INPUT_GET,'longitude');
+		}
 
 		if (isset($this->users[$this->client_ipaddress])) {
 			// check details of IP address which has already an entry
@@ -719,26 +721,6 @@ class CCAMS {
 		}
 		return json_encode(array(trim($txt)));
 	}
-
-	// used to get the date list for statistics
-	function get_logs() {
-		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
-			rsort($logfiles);
-			foreach ($logfiles as $file) {
-				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
-				if (!$this->is_debug && $date->diff(new DateTime('now'))->days > 64) continue;
-				$logs['day'][$date->format('Y-m-d')] = '';
-				$logs['week'][$date->format('W')] = '';
-				$logs['month'][$date->format('F Y')] = '';
-			}
-			foreach ($logs as $key => $value) {
-				$resp[$key] = array_keys($value);
-			}
-			//array_unique($resp, SORT_STRING);
-			return json_encode($resp);
-		}
-		return false;
-	}
 }
 
 
@@ -770,49 +752,89 @@ class CCAMSstats {
 		}
 	}
 
+	// used to get the date list for statistics
+	function logStats($maxDate = new DateTime(), $maxCount = 64) {
+		if (($logfiles = glob($this->root.$this->f_log.$this->logfile_prefix.'*'))!==false) {
+			rsort($logfiles);
+			foreach ($logfiles as $file) {
+				$date = new DateTimeImmutable(str_replace($this->logfile_prefix,'',pathinfo($file, PATHINFO_FILENAME)));
+				if ($date > $maxDate) continue;
+				// if ($date->diff(new DateTime('now'))->days > $maxDaysBack) continue;
+				$logs['day'][$date->format('Y-m-d')] = '';
+				$logs['week'][$date->format('Y-W')] = '';
+				$logs['month'][$date->format('Y-m')] = '';
+				if (count($logs['day']) >= $maxCount) break;
+			}
+			foreach ($logs as $key => $value) {
+				$resp[$key] = array_keys($value);
+			}
+			//array_unique($resp, SORT_STRING);
+			return json_encode($resp);
+		}
+		return false;
+	}
+
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
-		if (($logdata = file($this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt'))===false) return false;
+		$file = $this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt';
+		if (!file_exists($file)) return false;
+		if (($logdata = file($file))===false) return false;
 		foreach ($logdata as $line) {
-			$data = explode(";",$line);
-			if (count($data)>=8) $this->logdata[] = $data;
+			if (count($data = explode(";",trim($line))) >= 8) {
+				while (substr_count($data[2],'(') != substr_count($data[2],')') && count($data) > 8) {
+					$data = array_merge(array_slice($data, 0, 2), [implode(';', array_slice($data, 2, 2))], array_slice($data, 4));
+				}
+				if (count($data) == 8) $data[] = '';
+				if (count($data) != 9) continue;
+				$data = array_combine(array('timestamp', 'IP address', 'HTTP user agent', 'HTTP request URI', 'debug', 'callsign', 'execution time', 'log event', 'event result'), $data);
+				if (preg_match_all('/(\w+)=([^&]+)/', $data['HTTP request URI'], $getparams, PREG_SET_ORDER)) {
+					foreach ($getparams as $getparam) {
+						$data[$getparam[1]] = $getparam[2];
+					}
+				}
+				if ($callsign = explode('_', $data['callsign'])) {
+					$data['designator'] = reset($callsign);
+					$data['facility'] = end($callsign);
+				}
+				$data['client'] = preg_replace('/.+?plug-in: (\w+)\/([\d\w\.]+)/','$1 $2',$data['HTTP user agent']);
+				$this->logdata[] = $data;
+			}
 			// echo var_dump($data).'<br>';
 		}
-		//echo var_dump($this->logdata);
+		// echo 'Log Data Counter: '.count($this->logdata).'<br>';
+		// echo var_dump($this->logdata);
 	}
 
 	function createStats() {
+		if (count($this->logdata) == 0) return json_encode(array());
 		for ($i = 0; $i < 3; $i++) {
 			$stats = [];
 			$stats['hour'] = array_fill(0,24,0);
 			$stats['facility'] = array_fill_keys(['DEL', 'GND', 'TWR', 'APP', 'DEP', 'CTR', 'FSS'], 0);
-			$stats['flightrule'] = ['I', 'V'];
-			if ($i > 0 ) {
-				foreach (['date', 'year', 'month', 'week', 'day', 'callsign', 'designator', 'client', 'origin'] as $key) {
+			$stats['flightrule'] = array_fill_keys(['I', 'V'], 0);
+			if ($i > 0) {
+				foreach (['date', 'year', 'month', 'week', 'day', 'callsign', 'designator', 'client', 'orig', 'dest', 'connectiontype'] as $key) {
 					$stats[$key] = array_fill_keys(array_keys($statslib[0][$key]), 0);
 				}
 			}
 			foreach ($this->logdata as $log) {
-				$date = new DateTimeImmutable($log[0]);
-				if (!array_filter(array('not authorised', 'spam protection', 'code assigned'), fn($needle) => strpos($log[7], $needle) !== false)) continue;
-				if ($i > 0 && $i-1 != ($log[7] == 'code assigned')) continue;
-				//echo var_dump($date->format('Y-m-d'));
-				$stats['date'][$date->format('Y-m-d')] += 1;
-				$stats['year'][$date->format('Y')] += 1;
-				$stats['month'][$date->format('n')] += 1;
-				$stats['week'][$date->format('W')] += 1;
-				$stats['day'][$date->format('j')] += 1;
-				//echo var_dump($stats);
-				$stats['hour'][$date->format('G')] += 1;
-				$stats['callsign'][$log[5]] += 1;
-				if (preg_match('/^([A-Z]+)_/',$log[5],$m)) $stats['designator'][$m[1]] += 1;
-				if (preg_match('/_(DEL|GND|TWR|APP|DEP|CTR|FSS)$/',$log[5],$m)) $stats['facility'][$m[1]] += 1;
-				if (preg_match('/plug-in: (CCAMS)\/([\d\w\.]+)/',$log[2],$m)) $stats['client'][$m[1].' '.$m[2]] += 1;
-				if (preg_match('/orig=([A-Z]{4})/',$log[3],$m)) $stats['origin'][$m[1]] += 1;
-				if (preg_match('/flightrule(?:s)?=([A-Z])/',$log[3],$m)) $stats['flightrule'][$m[1]] += 1;
+				$date = new DateTime($log['timestamp']);
+				if (!array_filter(array('not authorised', 'spam protection', 'code assigned'), fn($needle) => strpos($log['log event'], $needle) !== false)) continue;
+				if ($i > 0 && $i-1 != ($log['log event'] == 'code assigned')) continue;
+				$dateformats = array('date' => 'Y-m-d', 'year' => 'Y', 'month' => 'n', 'week' => 'W', 'day' => 'j', 'hour' => 'G');
+				foreach ($dateformats as $formatname => $dateformat) {
+					if (!isset($stats[$formatname][$date->format($dateformat)])) $stats[$formatname][$date->format($dateformat)] = 1;
+					else $stats[$formatname][$date->format($dateformat)] += 1;
+				}
+				foreach (array('callsign', 'designator', 'facility', 'client', 'orig', 'dest', 'flightrule', 'connectiontype') as $simplecount) {
+					if (array_key_exists($simplecount, $log) && strlen($log[$simplecount]) > 0) {
+						if (!isset($stats[$simplecount][$log[$simplecount]])) $stats[$simplecount][$log[$simplecount]] = 1;
+						else $stats[$simplecount][$log[$simplecount]] += 1;
+					}
+				}
 			}
 			ksort($stats['designator']);
-			if (array_key_exists('client', $stats)) krsort($stats['client']);
+			krsort($stats['client']);
 			$statslib[] = $stats;
 		}
 		return json_encode($statslib);
