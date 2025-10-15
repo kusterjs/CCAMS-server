@@ -29,6 +29,10 @@ if (array_key_exists('r',$_GET)) {
 			else echo $CCAMSstats->logStats($seldate);
 			break;
 		case 'logdata':
+			for ($date = clone $seldate; $date <= new DateTime(); $date->modify('+1 day')) {
+				$CCAMSstats->readStats($date);
+			}
+			echo $CCAMSstats->logEntries($seldate);
 			break;
 		case 'stats-daily':
 			$CCAMSstats->readStats($seldate);
