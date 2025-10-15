@@ -449,13 +449,13 @@
 			
 			post.done( function(data) {
 				var resp = JSON.parse(data);
-				$('#datePicker').val(resp['day'][0]);
-				$('#datePicker').attr('min', resp['day'].pop());
-				$('#datePicker').attr('max', resp['day'].shift());
-
 				$.loadStatsDaily(resp['day'][0]);
 				$.loadStatsWeekly(resp['day'][0]);
 				$.loadStatsMonthly(resp['day'][0]);
+
+				$('#datePicker').val(resp['day'][0]);
+				$('#datePicker').attr('min', resp['day'].pop());
+				$('#datePicker').attr('max', resp['day'].shift());
 
 				prevRequest = resp;
 			});
