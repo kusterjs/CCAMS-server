@@ -774,6 +774,15 @@ class CCAMSstats {
 		return false;
 	}
 
+	function logEntries($mindate, $maxdate = new DateTime()) {
+		foreach ($this->logdata as $log) {
+			if (!array_filter(array('vdata updated extracted transponder codes', 'code assigned'), fn($needle) => strpos($log['log event'], $needle) !== false))
+				$loglist[] = $log;
+		}
+		rsort($loglist);
+		return json_encode($loglist);
+	}
+
 	function readStats($date) {
 		if (!$date instanceof DateTime) return false;
 		$file = $this->root.$this->f_log.$this->logfile_prefix.$date->format('Y-m-d').'.txt';
