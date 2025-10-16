@@ -455,10 +455,10 @@
 				$.loadStatsWeekly(resp['day'][0]);
 				$.loadStatsMonthly(resp['day'][0]);
 				
+				$('#datePicker').attr('min', resp['day'][resp['day'].length - 1]);
+				$('#datePicker').attr('max', resp['day'][0]);
+
 				prevRequest = resp;
-				
-				$('#datePicker').attr('min', resp['day'].pop());
-				$('#datePicker').attr('max', resp['day'].shift());
 			});
 
 		});
