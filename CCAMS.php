@@ -805,7 +805,7 @@ class CCAMSstats {
 					$data['designator'] = reset($callsign);
 					$data['facility'] = end($callsign);
 				}
-				$data['client'] = preg_replace('/.+?plug-in: (\w+)\/([\d\w\.]+)/','$1 $2',$data['HTTP user agent']);
+				$data['client'] = preg_replace('/(.+?plug-in:\s+)?(\w+)\/([\d\w\.]+)/','$2 $3',$data['HTTP user agent']);
 				$this->logdata[] = $data;
 			}
 			// echo var_dump($data).'<br>';
