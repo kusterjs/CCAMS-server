@@ -33,7 +33,7 @@
 	$pathinfo = pathinfo($geojson, PATHINFO_ALL);
 	$data = json_decode(file_get_contents($geojson), true);
 
-	$filter = file('https://raw.githubusercontent.com/kusterjs/CCAMS/master/config.txt', FILE_IGNORE_NEW_LINES);
+	$filter = file(__DIR__.'/data/config.txt', FILE_IGNORE_NEW_LINES);
 
 	$filteredFeatures = [];
 
