@@ -30,13 +30,12 @@ jobs:
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST};
         git checkout main;
         git pull origin;
-        mkdir bin;
-        mkdir data;
-        mkdir debug;
-        mkdir log;
+        mkdir bin data/geojson data/topsky debug log;
         php vatsim.php?r=vatsim-status;
         php vatsim.php?r=vatsim-data;
         php vatsim.php?r=vatspy-data;
+        php vatsim.php?r=vatspy-geojson;
+        php geojson.php
         php rangecollect.php;"
 
         

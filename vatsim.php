@@ -57,19 +57,20 @@ class VATSIM {
 				break;
 			case 'vatspy-data':
 				if ($copy = $this->curl_copy('https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/VATSpy.dat','VATSpy.dat')) {
-					$airports = array();
-					$pseudoID = array();
-
 					foreach (file(__DIR__.$this->f_orig.'VATSpy.dat') as $apt) {
 						if (preg_match('/^([A-Z]{4})(?:\|([^\|]*)){4}\|([^\1]{4})\2?/i',$apt,$m)) {
 							$vatspy['FIR'][] = strtolower($m[3]);
 							$vatspy['ICAO'][] = strtolower($m[1]);
-							$airports[strtolower($m[1])] = strtolower($m[3]);
 							if (!empty($m[2]) && $m[2]!=$m[3]) $vatspy['IATA'][] = strtolower($m[2]);
 							else $vatspy['IATA'][] = '';
 						}
 					}
 					$write = $this->write_cache_file($vatspy,'vatspy.bin');
+				}
+				break;
+			case 'vatspy-geojson':
+				if ($copy = $this->curl_copy('https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/Boundaries.geojson','Boundaries.geojson')) {
+
 				}
 				break;
 		}
