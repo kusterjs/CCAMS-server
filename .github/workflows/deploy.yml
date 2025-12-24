@@ -43,7 +43,6 @@ jobs:
         php vatsim.php --r=vatsim-data
         php vatsim.php --r=vatspy-data
         php vatsim.php --r=vatspy-geojson
-        php geojson.php
         php rangecollect.php
 
         
