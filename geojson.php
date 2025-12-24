@@ -41,8 +41,7 @@
 		$props = $feature['properties'];
 
 		if (preg_match('/^'.$filter[0].'/', substr($props['id'], 0, 4)) &&
-			!preg_match('/^'.$filter[1].'/', $props['id']) &&
-			!strpos($props['id'], '-')
+			!preg_match('/^'.$filter[1].'/', $props['id']) 
 		) {
 			$filteredFeatures[] = $feature;
 		}
@@ -71,7 +70,8 @@
 
 	foreach ($vatspy_apt as $apt) {
 		if (preg_match('/^'.$filter[0].'/', $apt[0]) &&
-			!preg_match('/^'.$filter[1].'/', $apt[0])
+			!preg_match('/^'.$filter[1].'/', $apt[0] &&
+			!$apt[6])
 		) {
 			$filteredFeatures[] = ['type' => 'Feature',
 				'properties' => ['ICAO' => $apt[0], 
