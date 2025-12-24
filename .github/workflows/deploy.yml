@@ -27,15 +27,24 @@ jobs:
 
     - name: Deploy code to server
       run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST};
-        git checkout main;
-        git pull origin;
-        mkdir bin data/geojson data/topsky debug log;
-        php vatsim.php?r=vatsim-status;
-        php vatsim.php?r=vatsim-data;
-        php vatsim.php?r=vatspy-data;
-        php vatsim.php?r=vatspy-geojson;
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        cd ${DEPLOY_PATH:-TEST}
+        git checkout main
+        git pull origin
+
+    - name: Create folder structure
+      run: |
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        mkdir -p bin data/geojson data/topsky debug log
+
+    - name: Run PHP service scripts
+      run: |
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        php vatsim.php --r=vatsim-status
+        php vatsim.php --r=vatsim-data
+        php vatsim.php --r=vatspy-data
+        php vatsim.php --r=vatspy-geojson
         php geojson.php
-        php rangecollect.php;"
+        php rangecollect.php
 
         
