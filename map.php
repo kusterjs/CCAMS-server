@@ -41,6 +41,11 @@
   <!-- OSM Map -->
   <div class="card mb-4 p-4 shadow-sm">
     <h4>VATSIM Mode S capable Airspace and Airports</h4>
+    <div class="row">
+      <div class="col-md-12 mb-4">
+		Download Mode S area in <a href="data/geojson/Boundaries_dissolved.geojson" download="Boundaries_ModeS.geojson">GeoJSON</a> or <a href="data/topsky/modes.txt" download>TopSky</a> format
+      </div>
+	</div>
     <div id="map"></div>
   </div>
 
