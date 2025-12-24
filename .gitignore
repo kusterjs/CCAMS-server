@@ -1,5 +1,6 @@
 bin/
 data/
+!data/geojson/*_dissolved*
 log/
 debug/
 test.php
