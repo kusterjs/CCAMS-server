@@ -16,22 +16,16 @@
 	}
 
 	// download files to server data folder
-	// if (!curl_copy('https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/Boundaries.geojson')) {
-	// 	echo 'Unable to download VATSpy Boundaries GeoJSON<br>';
-	// }
-
 	if (!curl_copy('https://raw.githubusercontent.com/kusterjs/CCAMS/master/config.txt')) {
 		echo 'Unable to download CCAMS config<br>';
 	}
 
-	// if (!curl_copy('https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/master/VATSpy.dat')) {
-	// 	echo 'Unable to download VATSpy data<br>';
-	// }
-
 	// process FIR geojson
 	$geojson = __DIR__.'/data/Boundaries.geojson';
 	$pathinfo = pathinfo($geojson, PATHINFO_ALL);
-	$data = json_decode(file_get_contents($geojson), true);
+	$handle = fopen($geojson, 'r');
+	$data = json_decode(stream_get_contents($handle), true);
+	fclose($handle);
 
 	$filter = file(__DIR__.'/data/config.txt', FILE_IGNORE_NEW_LINES);
 
@@ -52,7 +46,7 @@
 		'name' => 'VATSIM Mode S FIR Coverage Map',
 		'crs' => ['type' => 'name', 'properties' => ['name' => 'urn:ogc:def:crs:OGC:1.3:CRS84']],
 		'features' => $filteredFeatures
-	], JSON_PRETTY_PRINT);
+	]);
 
 	file_put_contents($pathinfo['dirname'].'/geojson/'.$pathinfo['filename'].'_filtered.'.$pathinfo['extension'], $json);	
 
@@ -70,8 +64,8 @@
 
 	foreach ($vatspy_apt as $apt) {
 		if (preg_match('/^'.$filter[0].'/', $apt[0]) &&
-			!preg_match('/^'.$filter[1].'/', $apt[0] &&
-			!$apt[6])
+			!preg_match('/^'.$filter[1].'/', $apt[0]) &&
+			!$apt[6]
 		) {
 			$filteredFeatures[] = ['type' => 'Feature',
 				'properties' => ['ICAO' => $apt[0], 
@@ -91,7 +85,7 @@
 		'name' => 'VATSIM Mode S Airport Map',
 		'crs' => ['type' => 'name', 'properties' => ['name' => 'urn:ogc:def:crs:OGC:1.3:CRS84']],
 		'features' => $filteredFeatures
-	], JSON_PRETTY_PRINT);
+	]);
 
 	file_put_contents(__DIR__ . '/data/geojson/Airports_filtered.geojson', $json);	
 
