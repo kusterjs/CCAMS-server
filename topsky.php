@@ -10,24 +10,15 @@ function decimalToDms(float $value, string $type): string
 
     $value = abs($value);
 
-    $deg = floor($value);
-    $minFloat = ($value - $deg) * 60;
-    $min = floor($minFloat);
-    $sec = ($minFloat - $min) * 60;
+    // 1 degree = 3600 seconds
+    $totalSeconds = round($value * 3600, 3);
 
-    // round seconds to milliseconds
-    $sec = round($sec, 3);
+    // Decompose
+    $deg = floor($totalSeconds / 3600);
+    $remaining = $totalSeconds - ($deg * 3600);
 
-    // handle rounding overflow
-    if ($sec >= 60.0) {
-        $sec = 0.0;
-        $min++;
-    }
-
-    if ($min >= 60) {
-        $min = 0;
-        $deg++;
-    }
+    $min = floor($remaining / 60);
+    $sec = $remaining - ($min * 60);
 
     return sprintf(
         '%s%03d.%02d.%06.3f',
