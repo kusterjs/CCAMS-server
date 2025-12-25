@@ -39,7 +39,7 @@ jobs:
     - name: Run PHP service scripts
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-        "cd ${DEPLOY_PATH:-TEST}"
+        "cd ${DEPLOY_PATH:-default}"
         /usr/bin/php vatsim.php --r=vatsim-status
         /usr/bin/php vatsim.php --r=vatsim-data
         /usr/bin/php vatsim.php --r=vatspy-data
