@@ -74,26 +74,30 @@
     };
 
     const overlayLayers = {};
+    const overlayBoundsLayers = []; // ONLY layers that should affect bounds
 
     /**
      * Helper function to load a GeoJSON layer
      */
-    function loadGeoJsonLayer(url, options, layerName) {
+    function loadGeoJsonLayer(url, options, name, useForBounds = true, order = 0) {
         return fetch(url)
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 const layer = L.geoJSON(data, options);
-                overlayLayers[layerName] = layer;
-                layer.addTo(map);
-                return layer;
+                overlayLayers[name] = { layer, order }; // store order with layer
+
+                if (useForBounds && layer.getLayers().length > 0) {
+                    overlayBoundsLayers.push({ layer, order });
+                }
+
+                return { name, layer, order };
             });
     }
 
     const layerPromises = [];
-	const layerBackground = [];
 
     /* ---------- Layer 0: FIRs ---------- */
-    layerBackground.push(
+    layerPromises.push(
         loadGeoJsonLayer(
             'data/Boundaries.geojson',
             {
@@ -117,7 +121,9 @@
                     //     `<strong>${feature.properties.id}</strong><br>`
                     // )
             },
-            'Mode S FIRs'
+            'FIR',
+            false,
+            10
         )
     );
 
@@ -131,7 +137,9 @@
                         `<strong>${feature.properties.id}</strong><br>`
                     )
             },
-            'Mode S FIRs'
+            'Mode S FIR',
+            true,
+            20
         )
     );
 
@@ -148,7 +156,9 @@
                     }
                 }
             },
-            'Mode S FIRs dissolved'
+            'Mode S FIR dissolved',
+            true,
+            30
         )
     );
 
@@ -171,19 +181,37 @@
                         `${feature.properties.FIR}`
                     )
             },
-            'Airports'
+            'Airports',
+            true,
+            50
         )
     );
 
     /* ---------- Finalize ---------- */
     Promise.all(layerPromises).then(layers => {
-        const group = L.featureGroup(layers);
-        map.fitBounds(group.getBounds());
+        // Sort by order ascending
+        layers.sort((a, b) => a.order - b.order);
 
-        L.control.layers(baseLayers, overlayLayers, {
-            collapsed: false
-        }).addTo(map);
+        // Add layers to map in sorted order
+        layers.forEach(l => l.layer.addTo(map));
+
+        // Fit bounds using only layers marked for bounds
+        if (overlayBoundsLayers.length > 0) {
+            const boundsGroup = L.featureGroup(
+                overlayBoundsLayers
+                    .sort((a, b) => a.order - b.order) // optional, same order
+                    .map(o => o.layer)
+            );
+            map.fitBounds(boundsGroup.getBounds(), { padding: [0, 0] });
+        }
+
+        // Add layer control
+        L.control.layers(baseLayers, Object.fromEntries(
+            layers.map(l => [l.name, l.layer])
+        ), { collapsed: false }).addTo(map);
     });
+
+    
 </script>
 
 </body>
