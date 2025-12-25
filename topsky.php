@@ -41,17 +41,23 @@ function decimalToDms(float $value, string $type): string
 $geojson = __DIR__.'/data/geojson/Boundaries_dissolved.geojson';
 $data = json_decode(file_get_contents($geojson), true);
 $multiPolygon = $data['features'];
+$topsky = [];
 
-$topsky = ["AREA:SIERRA", "\nMODE_S"];
 foreach ($multiPolygon as $featureIndex => $feature) {
     foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
 
         foreach ($polygon as $ringIndex => $ring) {
+            if ($ringIndex==0) {
+                $topsky[] = "AREA:SIERRA\n".($polygonIndex>0 ? '_'.$polygonIndex : '');
+                $topsky[] = "MODE_S\n";
+            } else {
+                $topsky[] = "AREA:SIERRA_EXCLUSION\n";
+            }
 
             foreach ($ring as [$lon, $lat]) {
-                $topsky[] = "\n".decimalToDms($lat, 'lat')."\t".decimalToDms($lon, 'lon');
+                $topsky[] = decimalToDms($lat, 'lat')."\t".decimalToDms($lon, 'lon')."\n";
             }
-            
+            $topsky[] = "\n";
         }
     }
 }
