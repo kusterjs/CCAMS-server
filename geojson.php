@@ -23,9 +23,7 @@
 	// process FIR geojson
 	$geojson = __DIR__.'/data/Boundaries.geojson';
 	$pathinfo = pathinfo($geojson, PATHINFO_ALL);
-	$handle = fopen($geojson, 'r');
-	$data = json_decode(stream_get_contents($handle), true);
-	fclose($handle);
+	$data = json_decode(file_get_contents($geojson), true);
 
 	$filter = file(__DIR__.'/data/config.txt', FILE_IGNORE_NEW_LINES);
 
