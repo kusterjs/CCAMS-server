@@ -38,11 +38,13 @@ jobs:
 
     - name: Run PHP service scripts
       run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+        "cd ${DEPLOY_PATH:-TEST}"
         php vatsim.php --r=vatsim-status
         php vatsim.php --r=vatsim-data
         php vatsim.php --r=vatspy-data
         php vatsim.php --r=vatspy-geojson
+        php geojson.php
         php rangecollect.php
 
         
