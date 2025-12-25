@@ -27,25 +27,30 @@ jobs:
 
     - name: Deploy code to server
       run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ${DEPLOY_PATH:-TEST}"
-        git checkout main
-        git pull origin
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          set -e
+          cd ${DEPLOY_PATH:-TEST}
+          git checkout main
+          git pull origin
+        EOF
 
     - name: Create folder structure
       run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
-        mkdir -p bin data/geojson data/topsky debug log
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          cd ${DEPLOY_PATH:-TEST}
+          mkdir -p bin data/geojson data/topsky debug log
+        EOF
 
     - name: Run PHP service scripts
       run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-        "cd ${DEPLOY_PATH:-default}"
-        /usr/bin/php vatsim.php --r=vatsim-status
-        /usr/bin/php vatsim.php --r=vatsim-data
-        /usr/bin/php vatsim.php --r=vatspy-data
-        /usr/bin/php vatsim.php --r=vatspy-geojson
-        /usr/bin/php geojson.php
-        /usr/bin/php rangecollect.php
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          cd ${DEPLOY_PATH:-TEST}
+          /usr/bin/php vatsim.php --r=vatsim-status
+          /usr/bin/php vatsim.php --r=vatsim-data
+          /usr/bin/php vatsim.php --r=vatspy-data
+          /usr/bin/php vatsim.php --r=vatspy-geojson
+          /usr/bin/php geojson.php
+          /usr/bin/php rangecollect.php
         EOF
 
         
