@@ -8,13 +8,11 @@
 	<!-- Bootstrap CSS -->
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 
+	<!-- Custom CSS -->
+	<link href="css/style.css" rel="stylesheet">
+
 	<!-- jQuery -->
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-
-	<style>
-		#map { height: 400px; width: 100%; border-radius: 0.5rem; }
-		.chart-container { height: 400px; width: 100%; }
-	</style>
 </head>
 <body>
 

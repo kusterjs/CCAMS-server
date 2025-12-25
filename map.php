@@ -11,24 +11,14 @@
 	<!-- Leaflet CSS -->
 	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
+	<!-- Custom CSS -->
+	<link href="css/style.css" rel="stylesheet">
+
 	<!-- Chart.js -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 	<!-- Leaflet JS -->
 	<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-	<style>
-		#map { height: 100vh; width: 100%; border-radius: 0.5rem; }
-		.polygon-label {
-			background: transparent;
-			border: none;
-			box-shadow: none;
-			color: #0000ff88;
-			font-size: 12px;
-			pointer-events: none;
-			text-align: center;
-		}
-	</style>
 </head>
 <body>
 
