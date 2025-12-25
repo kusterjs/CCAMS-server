@@ -10,24 +10,15 @@ function decimalToDms(float $value, string $type): string
 
     $value = abs($value);
 
-    $deg = floor($value);
-    $minFloat = ($value - $deg) * 60;
-    $min = floor($minFloat);
-    $sec = ($minFloat - $min) * 60;
+    // 1 degree = 3600 seconds
+    $totalSeconds = round($value * 3600, 3);
 
-    // round seconds to milliseconds
-    $sec = round($sec, 3);
+    // Decompose
+    $deg = floor($totalSeconds / 3600);
+    $remaining = $totalSeconds - ($deg * 3600);
 
-    // handle rounding overflow
-    if ($sec >= 60.0) {
-        $sec = 0.0;
-        $min++;
-    }
-
-    if ($min >= 60) {
-        $min = 0;
-        $deg++;
-    }
+    $min = floor($remaining / 60);
+    $sec = $remaining - ($min * 60);
 
     return sprintf(
         '%s%03d.%02d.%06.3f',
@@ -41,17 +32,23 @@ function decimalToDms(float $value, string $type): string
 $geojson = __DIR__.'/data/geojson/Boundaries_dissolved.geojson';
 $data = json_decode(file_get_contents($geojson), true);
 $multiPolygon = $data['features'];
+$topsky = [];
 
-$topsky = ["AREA:SIERRA", "\nMODE_S"];
 foreach ($multiPolygon as $featureIndex => $feature) {
     foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
 
         foreach ($polygon as $ringIndex => $ring) {
+            if ($ringIndex==0) {
+                $topsky[] = "AREA:SIERRA\n".($polygonIndex>0 ? '_'.$polygonIndex : '');
+                $topsky[] = "MODE_S\n";
+            } else {
+                $topsky[] = "AREA:SIERRA_EXCLUSION\n";
+            }
 
             foreach ($ring as [$lon, $lat]) {
-                $topsky[] = "\n".decimalToDms($lat, 'lat')."\t".decimalToDms($lon, 'lon');
+                $topsky[] = decimalToDms($lat, 'lat')."\t".decimalToDms($lon, 'lon')."\n";
             }
-            
+            $topsky[] = "\n";
         }
     }
 }

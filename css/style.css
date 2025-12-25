@@ -1,0 +1,63 @@
+/* Sticky navbar */
+body {
+    padding-top: 70px; /* Space for fixed navbar */
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+/* Sticky header + form section */
+.sticky-top-section {
+    position: sticky;
+    top: 70px; /* below navbar */
+    z-index: 900;
+    background-color: #ffffff;
+    padding: 1rem 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Scrollable rest of content */
+.scrollable-content {
+    max-height: calc(100vh - 70px - 200px); /* navbar + sticky section height */
+    overflow-y: auto;
+    padding-top: 1rem;
+}
+
+.table-responsive {
+    max-height: calc(100vh - 70px - 240px); /* adjust to desired height */
+    overflow-y: auto;
+}
+
+.table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #fff; /* or any header background */
+    z-index: 10;
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
+}
+
+#map {
+    height: calc(100vh - 70px - 240px);
+    width: 100%;
+    border-radius: 0.5rem;
+}
+
+.polygon-label {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: #0000ff88;
+    font-size: 12px;
+    pointer-events: none;
+    text-align: center;
+}
+
+.chart-container {
+    height: 400px;
+    width: 100%;
+}

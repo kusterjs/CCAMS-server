@@ -12,6 +12,7 @@
         <li class="nav-item"><a class="nav-link <?php if(basename($_SERVER['PHP_SELF'])=='index.php'){echo 'active';} ?>" href="index.php">Dashboard</a></li>
         <li class="nav-item"><a class="nav-link <?php if(basename($_SERVER['PHP_SELF'])=='codes.php'){echo 'active';} ?>" href="codes.php">Config</a></li>
         <li class="nav-item"><a class="nav-link <?php if(basename($_SERVER['PHP_SELF'])=='map.php'){echo 'active';} ?>" href="map.php">Mode S Map</a></li>
+        <li class="nav-item"><a class="nav-link <?php if(basename($_SERVER['PHP_SELF'])=='list.php'){echo 'active';} ?>" href="list.php">Mode S List</a></li>
         <li class="nav-item"><a class="nav-link <?php if(basename($_SERVER['PHP_SELF'])=='about.php'){echo 'active';} ?>" href="about.php">About</a></li>
       </ul>
     </div>
