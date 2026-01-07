@@ -51,9 +51,9 @@
 		file_put_contents($pathinfo['dirname'].'/geojson/'.$pathinfo['filename'].'_filtered.'.$pathinfo['extension'], $json);	
 
 		// process airports into geojson
-		foreach (file(__DIR__.'/data/VATSpy.dat', FILE_IGNORE_NEW_LINES) as $apt) {
-			$parts = explode('|', $apt);
-			if (count($parts)==7 && substr($apt, 0, 1)!=';') {
+		foreach (file(__DIR__.'/data/VATSpy.dat', FILE_IGNORE_NEW_LINES) as $vatspy) {
+			$parts = explode('|', $vatspy);
+			if (count($parts)==7 && substr($vatspy, 0, 1)!=';') {
 				$vatspy_apt[] = $parts;
 			}
 		}

@@ -50,6 +50,7 @@ jobs:
           /usr/bin/php vatsim.php --r=vatspy-data
           /usr/bin/php vatsim.php --r=vatspy-geojson
           /usr/bin/php geojson.php
+          /usr/bin/php topsky.php
           /usr/bin/php rangecollect.php
         EOF
 
