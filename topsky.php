@@ -112,7 +112,7 @@ foreach ($multiPolygon as $featureIndex => $feature) {
             }
 
             foreach ($ring as [$lon, $lat]) {
-                $topsky[] = decimalToDms($lat, 'lat')."\t".decimalToDms($lon, 'lon')."\n";
+                $topsky[] = decimalToDms($lat, 'lat')." ".decimalToDms($lon, 'lon')."\n";
             }
             $topsky[] = "\n";
         }
