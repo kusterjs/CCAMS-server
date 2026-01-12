@@ -1,12 +1,12 @@
-name: Deploy to Server
+name: Update Mode S Database
 
 on:
-  push:
-    branches:
-      - main
+  repository_dispatch:
+    types:
+      - trigger-modes-data-update
 
 jobs:
-  deploy:
+  run:
     runs-on: ubuntu-latest
 
     environment: Infomaniak
@@ -15,9 +15,16 @@ jobs:
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Show event metadata
+      run: |
+        echo "Triggered by: ${{ github.event.sender.login }}"
+        echo "Event type: ${{ github.event.action }}"
 
+    - name: Show payload
+      run: |
+        echo "Payload:"
+        echo '${{ toJson(github.event.client_payload) }}'
+        
     - name: Set up SSH
       run: |
         mkdir -p ~/.ssh
@@ -25,31 +32,19 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
 
-    - name: Deploy code to server
-      run: |
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-          set -e
-          cd ${DEPLOY_PATH:-TEST}
-          git checkout main
-          git pull origin
-        EOF
-
     - name: Create folder structure
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
           cd ${DEPLOY_PATH:-TEST}
-          mkdir -p bin data/geojson debug log
+          mkdir -p data/geojson data/topsky
         EOF
 
     - name: Run PHP service scripts
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
           cd ${DEPLOY_PATH:-TEST}
-          /usr/bin/php vatsim.php --r=vatsim-status
-          /usr/bin/php vatsim.php --r=vatsim-data
-          /usr/bin/php vatsim.php --r=vatspy-data
-          /usr/bin/php vatsim.php --r=vatspy-geojson
-          /usr/bin/php rangecollect.php
+          /usr/bin/php geojson.php
+          /usr/bin/php topsky.php
         EOF
 
         
