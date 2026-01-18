@@ -93,22 +93,45 @@ function buildFilteredPrefixes(array $candidates, array $airports): array
 }
 
 
-
 $geojson = __DIR__.'/data/geojson/Boundaries_dissolved.geojson';
 $data = json_decode(file_get_contents($geojson), true);
 $multiPolygon = $data['features'];
 $topsky = [];
 
-// TopSky plugin Mode S area definition
+// TopSky plugin Mode S area definitions
 foreach ($multiPolygon as $featureIndex => $feature) {
     foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
 
-        foreach ($polygon as $ringIndex => $ring) {
-            if ($ringIndex==0) {
-                $topsky[] = "AREA:SIERRA\n".($polygonIndex>0 ? '_'.$polygonIndex : '');
+        foreach (array_reverse($polygon) as $ringIndex => $ring) {
+            if ($ringIndex==count($polygon)-1) {
+                $topsky[] = "AREA:SIERRA".($polygonIndex>0 ? '_'.$polygonIndex+1 : '')."\n";
                 $topsky[] = "MODE_S\n";
             } else {
-                $topsky[] = "AREA:SIERRA_EXCLUSION\n";
+                $topsky[] = "AREA:SIERRA_EXCLUSION".($polygonIndex>0 ? '_'.$polygonIndex+1 : '').('_'.$ringIndex+1)."\n";
+            }
+
+            foreach ($ring as [$lon, $lat]) {
+                $topsky[] = decimalToDms($lat, 'lat')." ".decimalToDms($lon, 'lon')."\n";
+            }
+            $topsky[] = "\n";
+        }
+    }
+}
+
+// TopSky plugin Mode S area encompassing exlusions
+$geojson = __DIR__.'/data/geojson/Encompassing.geojson';
+$data = json_decode(file_get_contents($geojson), true);
+$multiPolygon = $data['features'];
+
+foreach ($multiPolygon as $featureIndex => $feature) {
+    foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
+
+        foreach (array_reverse($polygon) as $ringIndex => $ring) {
+            if ($ringIndex==count($polygon)-1) {
+                $topsky[] = "AREA:SIERRA_ENCOMPASSING_EXCLUSION".($polygonIndex>0 ? '_'.$polygonIndex+1 : '')."\n";
+            } else {
+                $topsky[] = "AREA:SIERRA_ENCOMPASSING".($polygonIndex>0 ? '_'.$polygonIndex+1 : '').('_'.$ringIndex+1)."\n";
+                $topsky[] = "MODE_S\n";
             }
 
             foreach ($ring as [$lon, $lat]) {
