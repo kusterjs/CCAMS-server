@@ -29,6 +29,36 @@ function decimalToDms(float $value, string $type): string
     );
 }
 
+function geojsonToTopSkyArea($geojson, $areaNameprefix, $isModeS = true): array
+{
+    $data = json_decode(file_get_contents($geojson), true);
+    $multiPolygon = $data['features'];
+    $topsky = [];
+    
+    if (json_last_error() !== JSON_ERROR_NONE) {
+		throw new RuntimeException('JSON decode error: ' . json_last_error_msg());
+	} else {
+        foreach ($multiPolygon as $featureIndex => $feature) {
+            foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
+                foreach (array_reverse($polygon) as $ringIndex => $ring) {
+                    if (($ringIndex==count($polygon)-1)==$isModeS) {
+                        $topsky[] = "AREA:".$areaNameprefix.($polygonIndex>0 ? '_'.$polygonIndex+1 : '')."\n";
+                        $topsky[] = "MODE_S\n";
+                    } else {
+                        $topsky[] = "AREA:".$areaNameprefix."_EXCLUSION".($polygonIndex>0 ? '_'.$polygonIndex+1 : '').('_'.$ringIndex+1)."\n";
+                    }
+
+                    foreach ($ring as [$lon, $lat]) {
+                        $topsky[] = decimalToDms($lat, 'lat')." ".decimalToDms($lon, 'lon')."\n";
+                    }
+                    $topsky[] = "\n";
+                }
+            }
+        }
+    }
+    return $topsky;
+}
+
 /**
  * Build filtered prefixes and include unmatched candidates.
  *
@@ -93,54 +123,8 @@ function buildFilteredPrefixes(array $candidates, array $airports): array
 }
 
 
-$geojson = __DIR__.'/data/geojson/Boundaries_dissolved.geojson';
-$data = json_decode(file_get_contents($geojson), true);
-$multiPolygon = $data['features'];
-$topsky = [];
-
 // TopSky plugin Mode S area definitions
-foreach ($multiPolygon as $featureIndex => $feature) {
-    foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
-
-        foreach (array_reverse($polygon) as $ringIndex => $ring) {
-            if ($ringIndex==count($polygon)-1) {
-                $topsky[] = "AREA:SIERRA".($polygonIndex>0 ? '_'.$polygonIndex+1 : '')."\n";
-                $topsky[] = "MODE_S\n";
-            } else {
-                $topsky[] = "AREA:SIERRA_EXCLUSION".($polygonIndex>0 ? '_'.$polygonIndex+1 : '').('_'.$ringIndex+1)."\n";
-            }
-
-            foreach ($ring as [$lon, $lat]) {
-                $topsky[] = decimalToDms($lat, 'lat')." ".decimalToDms($lon, 'lon')."\n";
-            }
-            $topsky[] = "\n";
-        }
-    }
-}
-
-// TopSky plugin Mode S area encompassing exlusions
-$geojson = __DIR__.'/data/geojson/Encompassing.geojson';
-$data = json_decode(file_get_contents($geojson), true);
-$multiPolygon = $data['features'];
-
-foreach ($multiPolygon as $featureIndex => $feature) {
-    foreach ($feature['geometry']['coordinates'] as $polygonIndex => $polygon) {
-
-        foreach (array_reverse($polygon) as $ringIndex => $ring) {
-            if ($ringIndex==count($polygon)-1) {
-                $topsky[] = "AREA:SIERRA_ENCOMPASSING_EXCLUSION".($polygonIndex>0 ? '_'.$polygonIndex+1 : '')."\n";
-            } else {
-                $topsky[] = "AREA:SIERRA_ENCOMPASSING".($polygonIndex>0 ? '_'.$polygonIndex+1 : '').('_'.$ringIndex+1)."\n";
-                $topsky[] = "MODE_S\n";
-            }
-
-            foreach ($ring as [$lon, $lat]) {
-                $topsky[] = decimalToDms($lat, 'lat')." ".decimalToDms($lon, 'lon')."\n";
-            }
-            $topsky[] = "\n";
-        }
-    }
-}
+$topsky = array_merge(geojsonToTopSkyArea(__DIR__.'/data/geojson/Boundaries_dissolved.geojson', 'SIERRA'), geojsonToTopSkyArea(__DIR__.'/data/geojson/Encompassing.geojson', 'SIERRA_ENCOMPASSING', false));
 
 // TopSky plugin Mode S airport inclusion and exclusion lists
 foreach (file(__DIR__.'/data/VATSpy.dat', FILE_IGNORE_NEW_LINES) as $vatspy) {
