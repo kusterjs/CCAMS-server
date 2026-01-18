@@ -1,9 +1,12 @@
 name: Update Mode S Database
 
 on:
+  push:
+    branches:
+      - main
   repository_dispatch:
     types:
-      - trigger-modes-data-update
+      - dispatch-ccams-config
 
 jobs:
   run:
@@ -43,6 +46,7 @@ jobs:
       run: |
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
           cd ${DEPLOY_PATH:-TEST}
+          /usr/bin/php vatsim.php --r=vatspy
           /usr/bin/php geojson.php
           /usr/bin/php topsky.php
         EOF
